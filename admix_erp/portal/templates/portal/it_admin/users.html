@@ -1,0 +1,33 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Kullanıcı Yönetimi{% endblock %}
+{% block topbar_extra %}
+<a href="/admin/auth/user/add/" class="btn btn-primary">+ Yeni Kullanıcı</a>
+{% endblock %}
+{% block content %}
+
+<div class="alert info">
+🔒 <strong>BT Yönetici</strong> — bu sayfa sadece IT_ADMIN grubuna dahil ve superuser kullanıcılara açıktır.
+</div>
+
+<div class="panel">
+<table class="data">
+<thead><tr><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>Roller</th><th>Aktif</th><th>Son Giriş</th></tr></thead>
+<tbody>
+{% for u in users %}
+<tr>
+  <td><strong>{{ u.username }}</strong></td>
+  <td>{{ u.get_full_name|default:'—' }}</td>
+  <td>
+    {% for g in u.groups.all %}
+      <span class="badge muted">{{ role_labels|default_if_none:''|dictsort:0|slice:":0" }}{{ g.name }}</span>
+    {% empty %}—{% endfor %}
+    {% if u.is_superuser %}<span class="badge danger">SUPERUSER</span>{% endif %}
+  </td>
+  <td>{% if u.is_active %}<span class="badge success">Aktif</span>{% else %}<span class="badge muted">Pasif</span>{% endif %}</td>
+  <td>{{ u.last_login|date:'d.m.Y H:i'|default:'—' }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endblock %}

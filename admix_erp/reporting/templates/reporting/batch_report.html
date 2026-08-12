@@ -1,0 +1,67 @@
+{% extends "reporting/_base.html" %}
+{% block section %}Parti Raporu · {{ batch.batch_number }}{% endblock %}
+{% block content %}
+
+<div class="cards">
+  <div class="card">
+    <div class="label">Parti</div>
+    <div class="value">{{ batch.batch_number }}</div>
+    <div class="sub">{{ batch.recipe.product.code }} v{{ batch.recipe.version }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Durum / QC</div>
+    <div class="value">{{ batch.get_status_display }}</div>
+    <div class="sub">QC: {{ batch.get_qc_status_display }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Hedef → Gerçek</div>
+    <div class="value">{{ cost.target_qty }} → {{ cost.actual_qty|default:"—" }}</div>
+    <div class="sub">Fire: {{ cost.waste_qty|default:"—" }} ({{ cost.waste_pct|default:"—" }}%)</div>
+  </div>
+  <div class="card">
+    <div class="label">Toplam Maliyet</div>
+    <div class="value">{{ cost.total_cost }}</div>
+    <div class="sub">kg başı: {{ cost.per_kg_cost|default:"—" }}</div>
+  </div>
+</div>
+
+<h2>Malzeme Maliyet Dökümü</h2>
+<table>
+  <thead><tr>
+    <th>Hammadde</th><th>Lot</th>
+    <th class="num">Gerçek (kg)</th>
+    <th class="num">Birim Maliyet</th>
+    <th class="num">Satır Maliyeti</th>
+  </tr></thead>
+  <tbody>
+  {% for l in cost.lines %}
+    <tr>
+      <td>{{ l.raw_material }}</td>
+      <td>{{ l.lot_number|default:"—" }}</td>
+      <td class="num">{{ l.actual_weight }}</td>
+      <td class="num">{{ l.unit_cost }}</td>
+      <td class="num">{{ l.line_cost }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Kütle Dengesi</h2>
+<table>
+  <thead><tr>
+    <th class="num">Toplam Girdi (Σ tartım)</th>
+    <th class="num">Çıktı (actual_qty)</th>
+    <th class="num">Delta</th>
+    <th class="num">Delta %</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class="num">{{ balance.total_input }}</td>
+      <td class="num">{{ balance.actual_output }}</td>
+      <td class="num">{{ balance.delta|default:"—" }}</td>
+      <td class="num">{{ balance.delta_pct|default:"—" }}</td>
+    </tr>
+  </tbody>
+</table>
+
+{% endblock %}

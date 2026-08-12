@@ -1,0 +1,49 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Onay Talebi #{{ ar.pk }}{% endblock %}
+{% block content %}
+
+<div class="panel" style="max-width:700px">
+  <h2>{{ ar.title }}</h2>
+
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:180px">Tür</th><td>{{ ar.get_kind_display }}</td></tr>
+    <tr><th>Talep Eden</th><td>{{ ar.requested_by.get_full_name|default:ar.requested_by.username }}</td></tr>
+    <tr><th>Talep Zamanı</th><td>{{ ar.created_at|date:'d.m.Y H:i' }}</td></tr>
+    <tr><th>Onaylayacak Rol</th><td><span class="badge info">{{ ar.required_role }}</span></td></tr>
+    <tr><th>Hedef</th><td>{{ ar.target }}</td></tr>
+    <tr><th>Durum</th><td><span class="badge {% if ar.status == 'PENDING' %}warning{% elif ar.status == 'APPROVED' %}success{% else %}danger{% endif %}">{{ ar.get_status_display }}</span></td></tr>
+  </table>
+
+  {% if ar.description %}
+  <div class="panel" style="background:#f9fafb;box-shadow:none;padding:16px">
+    <strong>Açıklama:</strong><br>
+    {{ ar.description|linebreaks }}
+  </div>
+  {% endif %}
+
+  {% if ar.status == 'PENDING' %}
+    <form method="post" style="margin-top:20px">
+      {% csrf_token %}
+      <div class="field">
+        <label>Gerekçe / Not</label>
+        <textarea name="reason" rows="3" placeholder="Karar gerekçesi (ret için zorunlu)"></textarea>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:14px">
+        <button type="submit" name="action" value="approve" class="btn btn-success" onclick="return confirm('Onaylıyorsunuz — hedef üzerinde ilgili işlem otomatik uygulanacak.')">
+          ✅ Onayla
+        </button>
+        <button type="submit" name="action" value="reject" class="btn btn-danger" onclick="return confirm('Bu talebi reddediyorsunuz — bir daha açılamayacak.')">
+          ❌ Reddet
+        </button>
+        <a href="{% url 'portal:approvals_inbox' %}" class="btn btn-outline">Vazgeç</a>
+      </div>
+    </form>
+  {% else %}
+    <div class="alert {% if ar.status == 'APPROVED' %}success{% else %}error{% endif %}">
+      Karar: <strong>{{ ar.get_status_display }}</strong><br>
+      Karar veren: {{ ar.decided_by.get_full_name|default:ar.decided_by.username }} · {{ ar.decided_at|date:'d.m.Y H:i' }}<br>
+      {% if ar.decision_reason %}Gerekçe: {{ ar.decision_reason }}{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

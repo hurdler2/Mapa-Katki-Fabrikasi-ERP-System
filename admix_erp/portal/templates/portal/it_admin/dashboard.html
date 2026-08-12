@@ -1,0 +1,54 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}BT Yönetim{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">BT / Sistem</div>
+<a class="menu-item active" href="{% url 'portal:it_admin' %}"><span class="icon">🖥️</span> Ana Ekran</a>
+<a class="menu-item" href="/admin/auth/user/"><span class="icon">👥</span> Kullanıcılar</a>
+<a class="menu-item" href="/admin/auth/group/"><span class="icon">🔒</span> Roller (Gruplar)</a>
+<a class="menu-item" href="/admin/iam/esignature/"><span class="icon">✍️</span> E-İmzalar</a>
+<a class="menu-item" href="/admin/iam/department/"><span class="icon">🏢</span> Departmanlar</a>
+<a class="menu-item" href="/admin/"><span class="icon">⚙️</span> Tam Django Admin</a>
+<a class="menu-item" href="/api/v1/"><span class="icon">🔌</span> REST API</a>
+{% endblock %}
+
+{% block content %}
+<div class="alert info">
+  🔧 <strong>BT rolü</strong>: Kullanıcı yönetimi, sistem ayarları ve Django Admin'in tamamına erişim.
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Toplam Kullanıcı</div>
+    <div class="value">{{ user_count }}</div>
+    <div class="sub">Aktif: {{ active_user_count }}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Tanımlı Rol</div>
+    <div class="value">{{ group_count }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>👥 Son Eklenen Kullanıcılar
+    <a href="/admin/auth/user/add/" class="cta">+ Yeni Kullanıcı</a>
+  </h2>
+  <table class="data">
+    <thead><tr><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>Roller</th><th>Aktif</th><th>Kayıt Tarihi</th></tr></thead>
+    <tbody>
+    {% for u in recent_users %}
+      <tr>
+        <td><a href="/admin/auth/user/{{ u.pk }}/change/">{{ u.username }}</a></td>
+        <td>{{ u.get_full_name|default:'—' }}</td>
+        <td>
+          {% for g in u.groups.all %}<span class="badge muted">{{ g.name }}</span> {% empty %}—{% endfor %}
+          {% if u.is_superuser %}<span class="badge danger">SUPERUSER</span>{% endif %}
+        </td>
+        <td>{% if u.is_active %}✅{% else %}❌{% endif %}</td>
+        <td>{{ u.date_joined|date:'d.m.Y' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

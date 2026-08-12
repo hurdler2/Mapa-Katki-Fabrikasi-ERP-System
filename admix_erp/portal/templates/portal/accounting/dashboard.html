@@ -1,0 +1,137 @@
+{% extends "portal/_base.html" %}
+{% block title %}Muhasebe Ana Ekran · ADMIX-ERP{% endblock %}
+{% block topbar %}Muhasebe Ana Ekran{% endblock %}
+{% block sidebar %}{% include "portal/accounting/_sidebar.html" %}{% endblock %}
+
+{% block topbar_extra %}
+<a href="{% url 'portal:accounting_invoice_new' %}" class="btn btn-primary">+ Yeni Fatura</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="kpi-grid">
+  <div class="kpi success">
+    <div class="label">Bu Ay Satış (TTC)</div>
+    <div class="value">{{ sales_this_month|floatformat:2 }} DZD</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Bu Ay Alım (TTC)</div>
+    <div class="value">{{ purchases_this_month|floatformat:2 }} DZD</div>
+  </div>
+  <div class="kpi {% if net_result >= 0 %}success{% else %}danger{% endif %}">
+    <div class="label">Bu Ay Net</div>
+    <div class="value">{{ net_result|floatformat:2 }} DZD</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Net TVA (Bu Ay)</div>
+    <div class="value">{{ tva_net|floatformat:2 }} DZD</div>
+    <div class="sub">Tahsil: {{ tva_collected|floatformat:2 }} · İndirim: {{ tva_deductible|floatformat:2 }}</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Açık Alacak (AR)</div>
+    <div class="value">{{ open_ar|floatformat:2 }} DZD</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">Açık Borç (AP)</div>
+    <div class="value">{{ open_ap|floatformat:2 }} DZD</div>
+  </div>
+</div>
+
+<div class="panel-grid-2">
+  <div class="panel">
+    <h2>📈 Aylık Trend (Son 6 Ay)</h2>
+    <canvas id="trendChart"></canvas>
+  </div>
+  <div class="panel">
+    <h2>👥 En Çok Satış Yapılan Müşteriler (Bu Yıl)</h2>
+    <canvas id="customerChart"></canvas>
+  </div>
+</div>
+
+<div class="panel-grid-2">
+  <div class="panel">
+    <h2>📊 Fatura Durum Dağılımı</h2>
+    <canvas id="statusChart"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>🧾 Son Faturalar
+      <a href="{% url 'portal:accounting_invoices' %}" class="cta">Tümü →</a>
+    </h2>
+    <table class="data">
+      <thead><tr>
+        <th>Fatura No</th><th>Cari</th><th>Tarih</th>
+        <th class="num">TTC</th><th>Durum</th>
+      </tr></thead>
+      <tbody>
+      {% for inv in recent_invoices %}
+        <tr>
+          <td><a href="{% url 'portal:accounting_invoice_detail' inv.pk %}">{{ inv.invoice_number }}</a></td>
+          <td>{{ inv.customer|default:inv.supplier }}</td>
+          <td>{{ inv.date|date:'d.m.Y' }}</td>
+          <td class="num">{{ inv.total_ttc|floatformat:2 }}</td>
+          <td>
+            <span class="badge
+              {% if inv.status == 'PAID' %}success
+              {% elif inv.status == 'PARTIALLY_PAID' %}warning
+              {% elif inv.status == 'POSTED' %}info
+              {% elif inv.status == 'CANCELLED' %}danger
+              {% else %}muted{% endif %}">
+              {{ inv.get_status_display }}
+            </span>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" style="color:var(--text-muted);text-align:center">Fatura yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_body %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const trend = {{ trend_json|safe }};
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: trend.map(d => d.month),
+    datasets: [
+      {label: 'Satış', data: trend.map(d => d.sales), borderColor:'#16a34a', backgroundColor:'#dcfce7', tension: 0.3, fill: true},
+      {label: 'Alım', data: trend.map(d => d.purchases), borderColor:'#dc2626', backgroundColor:'#fee2e2', tension: 0.3, fill: true},
+    ],
+  },
+  options: { plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}} }
+});
+
+const cust = {{ top_customers_json|safe }};
+new Chart(document.getElementById('customerChart'), {
+  type: 'bar',
+  data: {
+    labels: cust.map(c => c['customer__name']),
+    datasets: [{
+      label: 'Toplam Satış (DZD)',
+      data: cust.map(c => parseFloat(c.total || 0)),
+      backgroundColor: '#1e3a8a',
+    }],
+  },
+  options: { indexAxis: 'y', plugins:{legend:{display:false}} }
+});
+
+const status = {{ status_dist_json|safe }};
+new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: {
+    labels: status.map(s => s.status),
+    datasets: [{
+      data: status.map(s => s.n),
+      backgroundColor: ['#94a3b8', '#0284c7', '#ea580c', '#16a34a', '#dc2626'],
+    }],
+  },
+  options: { plugins:{legend:{position:'right'}} }
+});
+</script>
+{% endblock %}

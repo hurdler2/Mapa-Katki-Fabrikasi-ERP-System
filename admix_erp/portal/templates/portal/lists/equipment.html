@@ -1,0 +1,13 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Ekipmanlar{% endblock %}
+{% block content %}
+<div class="panel">
+<table class="data"><thead><tr><th>Ekipman No</th><th>Ad</th><th>Kategori</th><th>Kritiklik</th><th>Durum</th></tr></thead><tbody>
+{% for e in items %}
+<tr><td>{{ e.equipment_number }}</td><td>{{ e.name }}</td><td>{{ e.get_category_display }}</td>
+<td><span class="badge {% if e.criticality == 'A' %}danger{% elif e.criticality == 'B' %}warning{% else %}muted{% endif %}">{{ e.get_criticality_display }}</span></td>
+<td><span class="badge {% if e.status == 'OPERATIONAL' %}success{% elif e.status == 'UNDER_MAINTENANCE' %}warning{% else %}danger{% endif %}">{{ e.get_status_display }}</span></td></tr>
+{% empty %}<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px">Ekipman yok.</td></tr>
+{% endfor %}</tbody></table>
+</div>
+{% endblock %}

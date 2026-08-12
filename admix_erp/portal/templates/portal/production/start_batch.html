@@ -1,0 +1,44 @@
+{% extends "portal/_base.html" %}
+{% block title %}Yeni Parti · Üretim{% endblock %}
+{% block topbar %}Yeni Parti Başlat{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Üretim</div>
+<a class="menu-item" href="{% url 'portal:production' %}"><span class="icon">🏭</span> Ana Ekran</a>
+<a class="menu-item active" href="{% url 'portal:production_start_batch' %}"><span class="icon">▶️</span> Yeni Parti Başlat</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel" style="max-width:600px">
+  <p style="color:var(--text-muted);font-size:14px">
+    Bir üretim emri seç → sistem reçeteyi hedef miktara ölçekler, tüm hammadde tüketimlerini (target ağırlıklarıyla) hazırlar.
+    Operatör dozaj sırasında gerçek ağırlıkları girer.
+  </p>
+
+  <form method="post" class="stack">
+    {% csrf_token %}
+    <div class="field">
+      <label>Üretim Emri *</label>
+      <select name="order_id" required>
+        <option value="">— Emir Seçiniz —</option>
+        {% for o in orders %}
+          <option value="{{ o.pk }}">{{ o.order_number }} · {{ o.product.code }} · {{ o.target_qty }}kg · Reaktör: {{ o.reactor.code }}</option>
+        {% empty %}
+          <option disabled>Planlı emir bulunmuyor.</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Parti Numarası *</label>
+      <input type="text" name="batch_number" value="{{ suggested }}" required>
+      <small style="color:var(--text-muted);font-size:12px">Otomatik önerildi — gerekirse değiştirin.</small>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:20px">
+      <button type="submit" class="btn btn-primary">▶️ Parti Oluştur</button>
+      <a href="{% url 'portal:production' %}" class="btn btn-outline">İptal</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

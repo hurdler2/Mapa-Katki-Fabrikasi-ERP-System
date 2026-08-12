@@ -1,0 +1,90 @@
+{% extends "portal/_base.html" %}
+{% block title %}Faturalar · ADMIX-ERP{% endblock %}
+{% block topbar %}Faturalar{% endblock %}
+{% block sidebar %}{% include "portal/accounting/_sidebar.html" %}{% endblock %}
+
+{% block topbar_extra %}
+<a href="{% url 'portal:accounting_invoice_new' %}" class="btn btn-primary">+ Yeni Fatura</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="panel">
+  <form method="get" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+    <div>
+      <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Arama</label>
+      <input type="text" name="q" value="{{ search }}" placeholder="Fatura no / cari"
+             style="padding:8px;border:1px solid var(--border);border-radius:6px;min-width:220px">
+    </div>
+    <div>
+      <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Tip</label>
+      <select name="type" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">Tümü</option>
+        {% for v, l in type_choices %}
+          <option value="{{ v }}" {% if type_f == v %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Durum</label>
+      <select name="status" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">Tümü</option>
+        {% for v, l in status_choices %}
+          <option value="{{ v }}" {% if status_f == v %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Filtrele</button>
+    <a href="{% url 'portal:accounting_invoices' %}" style="align-self:center">Temizle</a>
+  </form>
+</div>
+
+<div class="panel">
+  <table class="data">
+    <thead><tr>
+      <th>Fatura No</th><th>Tip</th><th>Tarih</th><th>Vade</th>
+      <th>Cari</th>
+      <th class="num">HT</th><th class="num">TVA</th><th class="num">TTC</th>
+      <th class="num">Ödenen</th><th>Durum</th>
+    </tr></thead>
+    <tbody>
+    {% for inv in page.object_list %}
+      <tr>
+        <td><a href="{% url 'portal:accounting_invoice_detail' inv.pk %}"><strong>{{ inv.invoice_number }}</strong></a></td>
+        <td><span class="badge muted">{{ inv.get_type_display }}</span></td>
+        <td>{{ inv.date|date:'d.m.Y' }}</td>
+        <td>{{ inv.due_date|date:'d.m.Y'|default:'—' }}</td>
+        <td>{{ inv.customer|default:inv.supplier }}</td>
+        <td class="num">{{ inv.total_ht|floatformat:2 }}</td>
+        <td class="num">{{ inv.total_tva|floatformat:2 }}</td>
+        <td class="num"><strong>{{ inv.total_ttc|floatformat:2 }}</strong></td>
+        <td class="num">{{ inv.amount_paid|floatformat:2 }}</td>
+        <td>
+          <span class="badge
+            {% if inv.status == 'PAID' %}success
+            {% elif inv.status == 'PARTIALLY_PAID' %}warning
+            {% elif inv.status == 'POSTED' %}info
+            {% elif inv.status == 'CANCELLED' %}danger
+            {% else %}muted{% endif %}">
+            {{ inv.get_status_display }}
+          </span>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:30px">
+        Bu kritere uygun fatura yok. <a href="{% url 'portal:accounting_invoice_new' %}">Yeni fatura oluştur</a>.
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page.has_other_pages %}
+    <div style="margin-top:16px;text-align:center">
+      {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&type={{ type_f }}&status={{ status_f }}&q={{ search }}">← Önceki</a>{% endif %}
+      Sayfa {{ page.number }} / {{ page.paginator.num_pages }} · Toplam {{ page.paginator.count }}
+      {% if page.has_next %}<a href="?page={{ page.next_page_number }}&type={{ type_f }}&status={{ status_f }}&q={{ search }}">Sonraki →</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

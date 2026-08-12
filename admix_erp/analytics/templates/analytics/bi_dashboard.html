@@ -1,0 +1,130 @@
+{% extends "reporting/_base.html" %}
+{% block section %}BI Dashboard{% endblock %}
+{% block content %}
+
+<div style="display:flex;gap:12px;margin-bottom:20px">
+  <a href="{% url 'analytics:iso_audit' %}" style="background:#0369a1;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none">
+    ISO Denetim Paketi →
+  </a>
+</div>
+
+<h2>Kalite Test Sonuçları (Son 90 gün)</h2>
+<div class="cards">
+  <div class="card"><div class="label">Toplam Test</div><div class="value">{{ qc.total }}</div></div>
+  <div class="card"><div class="label">PASS</div><div class="value ok">{{ qc.pass_count }}</div></div>
+  <div class="card"><div class="label">FAIL</div><div class="value bad">{{ qc.fail_count }}</div></div>
+  <div class="card"><div class="label">FAIL %</div><div class="value">{{ qc.fail_pct }}%</div></div>
+</div>
+
+<h2>NCR/CAPA Yaşlanma</h2>
+<div class="cards">
+  <div class="card"><div class="label">Açık NCR</div><div class="value">{{ aging.ncr_open }}</div></div>
+  <div class="card"><div class="label">Açık CAPA</div><div class="value">{{ aging.capa_open }}</div></div>
+</div>
+<canvas id="agingChart" style="max-height:260px;background:#fff;padding:10px;border-radius:8px"></canvas>
+
+<h2>Ekipman OEE</h2>
+<table>
+  <thead><tr>
+    <th>Ekipman</th><th>Ad</th>
+    <th class="num">Availability %</th><th class="num">Performance %</th>
+    <th class="num">Quality %</th><th class="num">OEE %</th>
+    <th class="num">Parti</th>
+  </tr></thead>
+  <tbody>
+  {% for r in oee %}
+    <tr>
+      <td>{{ r.equipment }}</td>
+      <td>{{ r.name }}</td>
+      <td class="num">{{ r.availability_pct }}</td>
+      <td class="num">{{ r.performance_pct }}</td>
+      <td class="num">{{ r.quality_pct }}</td>
+      <td class="num"><strong>{{ r.oee_pct }}</strong></td>
+      <td class="num">{{ r.batches }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7">Reaktör bulunamadı.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Fire Trendi (Aylık)</h2>
+<canvas id="wasteChart" style="max-height:260px;background:#fff;padding:10px;border-radius:8px"></canvas>
+
+<h2>Tedarikçi Skorkartı (Son 180 gün)</h2>
+<table>
+  <thead><tr>
+    <th>Tedarikçi</th><th class="num">Kabul</th>
+    <th class="num">Lot</th><th class="num">Serbest</th>
+    <th class="num">Karantina</th><th class="num">Reddedilen</th>
+    <th class="num">Ret %</th><th class="num">NCR</th>
+  </tr></thead>
+  <tbody>
+  {% for s in supplier %}
+    <tr>
+      <td>{{ s.supplier }}</td>
+      <td class="num">{{ s.receipts }}</td>
+      <td class="num">{{ s.lots_total }}</td>
+      <td class="num">{{ s.lots_released }}</td>
+      <td class="num">{{ s.lots_quarantine }}</td>
+      <td class="num bad">{{ s.lots_rejected }}</td>
+      <td class="num">{{ s.rejection_pct }}%</td>
+      <td class="num">{{ s.ncr_count }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="8">Kayıt yok.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Müşteri Şikayeti Trendi</h2>
+<canvas id="complaintChart" style="max-height:260px;background:#fff;padding:10px;border-radius:8px"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const wasteData = {{ waste_json|safe }};
+const complaintData = {{ complaints_json|safe }};
+const oeeData = {{ oee_json|safe }};
+const agingData = {{ aging_json|safe }};
+
+new Chart(document.getElementById('wasteChart'), {
+  type: 'line',
+  data: {
+    labels: wasteData.map(d => d.month),
+    datasets: [
+      {label: 'Fire (kg)', data: wasteData.map(d => d.waste_qty), borderColor: '#c62828', tension: 0.3},
+      {label: 'Fire %', data: wasteData.map(d => d.waste_pct), borderColor: '#ed6c02', tension: 0.3, yAxisID: 'y1'},
+    ],
+  },
+  options: {
+    scales: {
+      y: {position: 'left', title: {display: true, text: 'kg'}},
+      y1: {position: 'right', title: {display: true, text: '%'}, grid: {drawOnChartArea: false}},
+    },
+  },
+});
+
+new Chart(document.getElementById('complaintChart'), {
+  type: 'bar',
+  data: {
+    labels: complaintData.map(d => d.month),
+    datasets: [
+      {label: 'Toplam', data: complaintData.map(d => d.total), backgroundColor: '#0369a1'},
+      {label: 'Çözüldü', data: complaintData.map(d => d.resolved), backgroundColor: '#2e7d32'},
+    ],
+  },
+});
+
+new Chart(document.getElementById('agingChart'), {
+  type: 'bar',
+  data: {
+    labels: Object.keys(agingData.ncr_by_age),
+    datasets: [
+      {label: 'Açık NCR', data: Object.values(agingData.ncr_by_age), backgroundColor: '#c62828'},
+      {label: 'Açık CAPA', data: Object.values(agingData.capa_by_age), backgroundColor: '#7c3aed'},
+    ],
+  },
+});
+</script>
+
+{% endblock %}

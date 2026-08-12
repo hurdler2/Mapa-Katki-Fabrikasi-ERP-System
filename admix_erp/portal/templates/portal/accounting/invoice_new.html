@@ -1,0 +1,102 @@
+{% extends "portal/_base.html" %}
+{% block title %}Yeni Fatura · ADMIX-ERP{% endblock %}
+{% block topbar %}Yeni Fatura Oluştur{% endblock %}
+{% block sidebar %}{% include "portal/accounting/_sidebar.html" %}{% endblock %}
+
+{% block content %}
+<div class="panel" style="max-width:800px">
+  <form method="post" class="stack" id="invForm">
+    {% csrf_token %}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="field">
+        <label>Fatura No *</label>
+        <input type="text" name="invoice_number" required placeholder="INV-2026-001">
+      </div>
+      <div class="field">
+        <label>Fatura Tipi *</label>
+        <select name="type" id="typeSelect" required>
+          <option value="SALES">Satış (AR)</option>
+          <option value="PURCHASE">Satın alma (AP)</option>
+          <option value="CN_SALES">Alacak dekontu - satış</option>
+          <option value="CN_PURCHASE">Alacak dekontu - satın alma</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="field">
+        <label>Fatura Tarihi *</label>
+        <input type="date" name="date" value="{{ today }}" required>
+      </div>
+      <div class="field">
+        <label>Vade Tarihi</label>
+        <input type="date" name="due_date">
+      </div>
+    </div>
+
+    <div class="field" id="customerRow">
+      <label>Müşteri *</label>
+      <select name="customer">
+        <option value="">— Seçiniz —</option>
+        {% for c in customers %}<option value="{{ c.pk }}">{{ c.code }} · {{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div class="field" id="supplierRow" style="display:none">
+      <label>Tedarikçi *</label>
+      <select name="supplier">
+        <option value="">— Seçiniz —</option>
+        {% for s in suppliers %}<option value="{{ s.pk }}">{{ s.code }} · {{ s.name }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <h3 style="margin-top:20px;color:var(--text-muted);font-size:13px;text-transform:uppercase">Fatura Satırı</h3>
+
+    <div class="field">
+      <label>Açıklama</label>
+      <input type="text" name="line_description" placeholder="Ürün / hizmet açıklaması">
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div class="field">
+        <label>Miktar</label>
+        <input type="number" step="0.01" name="quantity" value="1" required>
+      </div>
+      <div class="field">
+        <label>Birim Fiyat (HT) *</label>
+        <input type="number" step="0.01" name="unit_price" required>
+      </div>
+      <div class="field">
+        <label>TVA Oranı *</label>
+        <select name="tva_rate" required>
+          {% for t in tva_rates %}<option value="{{ t.code }}" {% if t.code == 'TVA19' %}selected{% endif %}>{{ t.name }} ({{ t.rate_pct }}%)</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Notlar</label>
+      <textarea name="notes" rows="3"></textarea>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:20px">
+      <button type="submit" class="btn btn-primary">Faturayı Kaydet (Taslak)</button>
+      <a href="{% url 'portal:accounting_invoices' %}" class="btn btn-outline">İptal</a>
+    </div>
+  </form>
+</div>
+
+<script>
+const typeSel = document.getElementById('typeSelect');
+const cRow = document.getElementById('customerRow');
+const sRow = document.getElementById('supplierRow');
+function toggle() {
+  const isSale = typeSel.value === 'SALES' || typeSel.value === 'CN_SALES';
+  cRow.style.display = isSale ? '' : 'none';
+  sRow.style.display = isSale ? 'none' : '';
+}
+typeSel.addEventListener('change', toggle);
+toggle();
+</script>
+{% endblock %}

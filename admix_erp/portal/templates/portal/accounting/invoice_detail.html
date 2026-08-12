@@ -1,0 +1,98 @@
+{% extends "portal/_base.html" %}
+{% block title %}Fatura {{ inv.invoice_number }}{% endblock %}
+{% block topbar %}Fatura · {{ inv.invoice_number }}{% endblock %}
+{% block sidebar %}{% include "portal/accounting/_sidebar.html" %}{% endblock %}
+
+{% block content %}
+
+<div style="margin-bottom:16px">
+  <a href="{% url 'portal:accounting_invoices' %}">← Fatura listesine dön</a>
+</div>
+
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px">
+    <div>
+      <h2 style="margin:0">{{ inv.invoice_number }}</h2>
+      <div style="color:var(--text-muted);margin-top:4px">{{ inv.get_type_display }} · {{ inv.date|date:'d.m.Y' }}</div>
+    </div>
+    <div>
+      <span class="badge
+        {% if inv.status == 'PAID' %}success
+        {% elif inv.status == 'PARTIALLY_PAID' %}warning
+        {% elif inv.status == 'POSTED' %}info
+        {% elif inv.status == 'CANCELLED' %}danger
+        {% else %}muted{% endif %}" style="font-size:14px;padding:6px 14px">
+        {{ inv.get_status_display }}
+      </span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+    <div>
+      <div style="color:var(--text-muted);font-size:12px;text-transform:uppercase">Cari</div>
+      <div style="font-weight:600;margin-top:4px">{{ inv.customer|default:inv.supplier|default:'—' }}</div>
+      {% if inv.customer.tax_no %}<div style="color:var(--text-muted);font-size:13px">Vergi No: {{ inv.customer.tax_no }}</div>{% endif %}
+      {% if inv.supplier.tax_no %}<div style="color:var(--text-muted);font-size:13px">Vergi No: {{ inv.supplier.tax_no }}</div>{% endif %}
+    </div>
+    <div>
+      <div style="color:var(--text-muted);font-size:12px;text-transform:uppercase">Vade</div>
+      <div style="font-weight:600;margin-top:4px">{{ inv.due_date|date:'d.m.Y'|default:'—' }}</div>
+    </div>
+  </div>
+
+  <table class="data" style="margin-bottom:20px">
+    <thead><tr>
+      <th>#</th><th>Açıklama</th>
+      <th class="num">Miktar</th><th class="num">Birim Fiyat</th>
+      <th class="num">HT</th><th class="num">TVA</th><th class="num">TTC</th>
+    </tr></thead>
+    <tbody>
+    {% for line in inv.lines.all %}
+      <tr>
+        <td>{{ line.sequence }}</td>
+        <td>{{ line.description }}</td>
+        <td class="num">{{ line.quantity }}</td>
+        <td class="num">{{ line.unit_price }}</td>
+        <td class="num">{{ line.ht_amount|floatformat:2 }}</td>
+        <td class="num">{{ line.tva_amount|floatformat:2 }} ({{ line.tva_rate.rate_pct }}%)</td>
+        <td class="num"><strong>{{ line.ttc_amount|floatformat:2 }}</strong></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div style="max-width:400px;margin-left:auto">
+    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Toplam HT (KDVsiz):</span><strong>{{ inv.total_ht|floatformat:2 }} DZD</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Toplam TVA:</span><strong>{{ inv.total_tva|floatformat:2 }} DZD</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);font-size:16px"><span>Toplam TTC (KDV dahil):</span><strong style="color:var(--primary)">{{ inv.total_ttc|floatformat:2 }} DZD</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Ödenen:</span><strong>{{ inv.amount_paid|floatformat:2 }} DZD</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Kalan:</span><strong style="color:var(--danger)">{{ inv.amount_due|floatformat:2 }} DZD</strong></div>
+  </div>
+
+  {% if inv.notes %}
+    <div style="margin-top:20px;padding:14px;background:#f9fafb;border-radius:8px">
+      <div style="color:var(--text-muted);font-size:12px;text-transform:uppercase;margin-bottom:6px">Notlar</div>
+      {{ inv.notes|linebreaks }}
+    </div>
+  {% endif %}
+
+  {% if inv.status == 'DRAFT' %}
+  <form method="post" style="margin-top:20px">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="post">
+    <button type="submit" class="btn btn-primary" onclick="return confirm('Fatura muhasebeleştirilecek — yevmiye fişi otomatik oluşacak. Onaylıyor musunuz?')">
+      ✓ Muhasebeleştir (Yevmiye Fişi Oluştur)
+    </button>
+  </form>
+  {% endif %}
+
+  {% if inv.journal_entry %}
+    <div class="alert info" style="margin-top:20px">
+      <strong>Yevmiye Fişi:</strong> {{ inv.journal_entry.entry_number }}
+      · {{ inv.journal_entry.get_status_display }}
+      · <a href="/admin/accounting/journalentry/{{ inv.journal_entry.pk }}/change/">Detay →</a>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

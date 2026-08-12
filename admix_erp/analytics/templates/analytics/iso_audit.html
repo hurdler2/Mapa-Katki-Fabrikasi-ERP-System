@@ -1,0 +1,126 @@
+{% extends "reporting/_base.html" %}
+{% block section %}ISO Denetim Paketi{% endblock %}
+{% block content %}
+
+<p style="color:#6b7280">
+Dönem: <strong>{{ pkg.period.from }}</strong> → <strong>{{ pkg.period.to }}</strong>
+</p>
+
+<div style="display:flex;gap:10px;margin-bottom:24px">
+  <a href="{% url 'analytics:iso_audit_pdf' %}"
+     style="background:#0369a1;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none">
+    PDF indir
+  </a>
+  <a href="{% url 'analytics:iso_audit_json' %}"
+     style="background:#374151;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none">
+    JSON indir
+  </a>
+  <a href="{% url 'analytics:iso_audit_zip' %}"
+     style="background:#2e7d32;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none">
+    ZIP (PDF+JSON) indir
+  </a>
+</div>
+
+<h2>Doküman Kontrolü (ISO 9001 §7.5)</h2>
+<div class="cards">
+  <div class="card"><div class="label">Aktif doküman</div><div class="value">{{ pkg.documents.active }}</div></div>
+  <div class="card"><div class="label">Yürürlükteki revizyon</div><div class="value">{{ pkg.documents.effective_revisions }}</div></div>
+  <div class="card"><div class="label">Vadesi geçen gözden geçirme</div>
+    <div class="value {% if pkg.documents.overdue_reviews > 0 %}bad{% endif %}">
+      {{ pkg.documents.overdue_reviews }}
+    </div>
+  </div>
+</div>
+
+<h2>QMS — NCR / CAPA (§8.7, §10.2)</h2>
+<div class="cards">
+  <div class="card"><div class="label">Açık NCR</div><div class="value">{{ pkg.qms.ncr_open }}</div></div>
+  <div class="card"><div class="label">Açık CAPA</div><div class="value">{{ pkg.qms.capa_open }}</div></div>
+</div>
+<table>
+  <thead><tr><th>Yaş grubu</th><th class="num">NCR</th></tr></thead>
+  <tbody>
+  {% for age, n in pkg.qms.ncr_by_age.items %}
+    <tr><td>{{ age }}</td><td class="num">{{ n }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<table style="margin-top:12px">
+  <thead><tr><th>CAPA Yaş grubu</th><th class="num">Adet</th></tr></thead>
+  <tbody>
+  {% for age, n in pkg.qms.capa_by_age.items %}
+    <tr><td>{{ age }}</td><td class="num">{{ n }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Kalibrasyon (§7.1.5.2)</h2>
+<div class="cards">
+  <div class="card"><div class="label">Toplam plan</div><div class="value">{{ pkg.calibration.schedules_total }}</div></div>
+  <div class="card"><div class="label">Vadesi geçen</div>
+    <div class="value {% if pkg.calibration.overdue > 0 %}bad{% endif %}">
+      {{ pkg.calibration.overdue }}
+    </div>
+  </div>
+  <div class="card"><div class="label">Son 12ay PASS</div><div class="value ok">{{ pkg.calibration.pass_last_12mo }}</div></div>
+  <div class="card"><div class="label">Son 12ay FAIL</div><div class="value bad">{{ pkg.calibration.fail_last_12mo }}</div></div>
+</div>
+
+<h2>İç Denetim (§9.2)</h2>
+<p>Denetim sayısı: <strong>{{ pkg.internal_audit.audits_count }}</strong></p>
+<table>
+  <thead><tr><th>Seviye</th><th class="num">Adet</th></tr></thead>
+  <tbody>
+  {% for level, n in pkg.internal_audit.findings_by_level.items %}
+    <tr><td>{{ level }}</td><td class="num">{{ n }}</td></tr>
+  {% empty %}
+    <tr><td colspan="2">Bulgu yok.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Yönetim Gözden Geçirme (§9.3)</h2>
+<p>Toplantı sayısı: <strong>{{ pkg.management_review.count }}</strong> ·
+   Son toplantı: <strong>{{ pkg.management_review.last_date|default:"—" }}</strong></p>
+
+<h2>Yasal Uyum</h2>
+<table>
+  <thead><tr><th>Durum</th><th class="num">Sayı</th></tr></thead>
+  <tbody>
+  {% for status, n in pkg.legal_compliance.items %}
+    <tr><td>{{ status }}</td><td class="num">{{ n }}</td></tr>
+  {% empty %}
+    <tr><td colspan="2">Yasal kayıt yok.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>EHS</h2>
+<div class="cards">
+  <div class="card"><div class="label">Olay sayısı</div><div class="value">{{ pkg.ehs.incidents_total }}</div></div>
+  <div class="card"><div class="label">Kayıp işgünü</div>
+    <div class="value {% if pkg.ehs.lost_days > 0 %}bad{% endif %}">{{ pkg.ehs.lost_days }}</div>
+  </div>
+</div>
+
+<h2>Risk (§6.1)</h2>
+<div class="cards">
+  <div class="card"><div class="label">Toplam açık</div><div class="value">{{ pkg.risk.open_total }}</div></div>
+  <div class="card"><div class="label">Yüksek skor (≥15)</div>
+    <div class="value {% if pkg.risk.high_score_15plus > 0 %}bad{% endif %}">
+      {{ pkg.risk.high_score_15plus }}
+    </div>
+  </div>
+</div>
+
+<h2>Raf Ömrü</h2>
+<div class="cards">
+  <div class="card"><div class="label">Açık alert</div>
+    <div class="value {% if pkg.shelf_life_alerts_open > 0 %}bad{% endif %}">
+      {{ pkg.shelf_life_alerts_open }}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Olay Bildir{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:700px">
+<form method="post" class="stack">
+  {% csrf_token %}
+  <div class="field"><label>Olay No *</label><input type="text" name="incident_number" required placeholder="INC-2026-001"></div>
+  <div class="field"><label>Tip *</label><select name="type" required>
+    {% for v, l in types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+  </select></div>
+  <div class="field"><label>Ağırlık</label><select name="severity">
+    {% for v, l in severities %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+  </select></div>
+  <div class="field"><label>Yer *</label><input type="text" name="location" required placeholder="Reaktör 1 alanı"></div>
+  <div class="field"><label>Açıklama *</label><textarea name="description" rows="4" required></textarea></div>
+  <button type="submit" class="btn btn-primary">🚨 Olay Bildir</button>
+</form>
+</div>
+{% endblock %}

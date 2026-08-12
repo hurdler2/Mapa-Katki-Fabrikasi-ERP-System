@@ -1,0 +1,48 @@
+{% extends "reporting/_base.html" %}
+{% block section %}Büyük Defter · {{ account.code }}{% endblock %}
+{% block content %}
+
+<div class="cards">
+  <div class="card">
+    <div class="label">Hesap</div>
+    <div class="value">{{ account.code }}</div>
+    <div class="sub">{{ account.name }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Toplam Borç</div>
+    <div class="value">{{ ledger.total_debit|floatformat:2 }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Toplam Alacak</div>
+    <div class="value">{{ ledger.total_credit|floatformat:2 }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Kapanış Bakiyesi</div>
+    <div class="value">{{ ledger.closing_balance|floatformat:2 }}</div>
+  </div>
+</div>
+
+<h2>Hareketler</h2>
+<table>
+  <thead><tr>
+    <th>Tarih</th><th>Fiş</th><th>Yevmiye</th><th>Açıklama</th>
+    <th class="num">Borç</th><th class="num">Alacak</th><th class="num">Bakiye</th>
+  </tr></thead>
+  <tbody>
+  {% for l in ledger.lines %}
+    <tr>
+      <td>{{ l.date|date:'Y-m-d' }}</td>
+      <td>{{ l.entry_number }}</td>
+      <td>{{ l.journal }}</td>
+      <td>{{ l.description }}</td>
+      <td class="num">{{ l.debit|floatformat:2 }}</td>
+      <td class="num">{{ l.credit|floatformat:2 }}</td>
+      <td class="num">{{ l.running_balance|floatformat:2 }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7">Bu dönemde hareket yok.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

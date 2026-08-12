@@ -1,0 +1,121 @@
+{% extends "portal/_base.html" %}
+{% block title %}Üretim Portalı{% endblock %}
+{% block topbar %}Üretim Ana Ekran{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Üretim</div>
+<a class="menu-item {% if current == 'home' %}active{% endif %}" href="{% url 'portal:production' %}">
+  <span class="icon">🏭</span> Ana Ekran
+</a>
+<a class="menu-item" href="{% url 'portal:production_start_batch' %}">
+  <span class="icon">▶️</span> Yeni Parti Başlat
+</a>
+<a class="menu-item" href="/admin/production/productionorder/">
+  <span class="icon">📋</span> Üretim Emirleri
+</a>
+<a class="menu-item" href="/admin/production/productionbatch/">
+  <span class="icon">🧪</span> Tüm Partiler
+</a>
+<a class="menu-item" href="/admin/formulation/recipe/">
+  <span class="icon">📖</span> Reçeteler
+</a>
+<a class="menu-item" href="/reporting/dashboard/">
+  <span class="icon">📊</span> Üretim Raporu
+</a>
+{% endblock %}
+
+{% block topbar_extra %}
+<a href="{% url 'portal:production_start_batch' %}" class="btn btn-primary">▶️ Yeni Parti Başlat</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Aktif Parti</div>
+    <div class="value">{{ active_batches|length }}</div>
+  </div>
+  <div class="kpi success">
+    <div class="label">Son 30 Gün Üretim</div>
+    <div class="value">{{ total_30 }}</div>
+    <div class="sub">Serbest bırakılan: {{ released_30 }}</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Planlı Emirler</div>
+    <div class="value">{{ planned_orders|length }}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Aktif Reçete</div>
+    <div class="value">{{ recipes_count }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>🏗️ Reaktör Durumları</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+    {% for r in reactor_states %}
+      <div style="padding:16px;border-radius:8px;background:{% if r.busy %}#fef3c7{% else %}#dcfce7{% endif %};border-left:4px solid {% if r.busy %}#ea580c{% else %}#16a34a{% endif %}">
+        <div style="font-weight:600">{{ r.container.code }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">{{ r.container.name }}</div>
+        {% if r.busy %}
+          <div style="margin-top:10px;font-size:13px">🔴 {{ r.active_batch.batch_number }} ({{ r.active_batch.get_status_display }})</div>
+        {% else %}
+          <div style="margin-top:10px;font-size:13px">🟢 Boşta</div>
+        {% endif %}
+      </div>
+    {% empty %}
+      <div style="color:var(--text-muted)">Reaktör tanımlı değil.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="panel-grid-2">
+  <div class="panel">
+    <h2>🧪 Aktif Partiler
+      <a href="/admin/production/productionbatch/" class="cta">Tümü →</a>
+    </h2>
+    <table class="data">
+      <thead><tr><th>Parti No</th><th>Ürün</th><th>Reaktör</th><th class="num">Hedef</th><th>Durum</th></tr></thead>
+      <tbody>
+      {% for b in active_batches %}
+        <tr>
+          <td><a href="/admin/production/productionbatch/{{ b.pk }}/change/">{{ b.batch_number }}</a></td>
+          <td>{{ b.recipe.product.code }}</td>
+          <td>{{ b.reactor.code }}</td>
+          <td class="num">{{ b.target_qty }}</td>
+          <td>
+            <span class="badge
+              {% if b.status == 'RELEASED' %}success
+              {% elif b.status == 'IN_PROGRESS' %}info
+              {% elif b.status == 'QC_HOLD' %}warning
+              {% elif b.status == 'REJECTED' %}danger
+              {% else %}muted{% endif %}">{{ b.get_status_display }}</span>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Aktif parti yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>📋 Planlı Üretim Emirleri</h2>
+    <table class="data">
+      <thead><tr><th>Emir No</th><th>Ürün</th><th class="num">Miktar</th><th>Tarih</th></tr></thead>
+      <tbody>
+      {% for o in planned_orders %}
+        <tr>
+          <td>{{ o.order_number }}</td>
+          <td>{{ o.product.code }}</td>
+          <td class="num">{{ o.target_qty }}</td>
+          <td>{{ o.scheduled_date|date:'d.m.Y'|default:'—' }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Planlı emir yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

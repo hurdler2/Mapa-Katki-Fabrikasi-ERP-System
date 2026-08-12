@@ -1,0 +1,69 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Bakım Ana Ekran{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Bakım (CMMS)</div>
+<a class="menu-item active" href="{% url 'portal:maintenance' %}"><span class="icon">🔧</span> Ana Ekran</a>
+<a class="menu-item" href="/admin/cmms/workorder/add/"><span class="icon">➕</span> Yeni İş Emri</a>
+<a class="menu-item" href="/admin/cmms/workorder/"><span class="icon">📋</span> İş Emirleri</a>
+<a class="menu-item" href="/admin/cmms/equipment/"><span class="icon">⚙️</span> Ekipmanlar</a>
+<a class="menu-item" href="/admin/cmms/calibrationschedule/"><span class="icon">📏</span> Kalibrasyon</a>
+<a class="menu-item" href="/admin/cmms/sparepart/"><span class="icon">🔩</span> Yedek Parça</a>
+{% endblock %}
+
+{% block topbar_extra %}
+<a href="/admin/cmms/workorder/add/" class="btn btn-primary">+ Yeni İş Emri</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Açık İş Emri</div>
+    <div class="value">{{ open_wos|length }}</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">Vadesi Geçen Kalibrasyon</div>
+    <div class="value">{{ overdue_cal|length }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>🔧 Açık İş Emirleri</h2>
+  <table class="data">
+    <thead><tr><th>WO No</th><th>Tip</th><th>Ekipman</th><th>Öncelik</th><th>Durum</th><th>Atanan</th></tr></thead>
+    <tbody>
+    {% for w in open_wos %}
+      <tr>
+        <td><a href="/admin/cmms/workorder/{{ w.pk }}/change/">{{ w.work_order_number }}</a></td>
+        <td>{{ w.get_type_display }}</td>
+        <td>{{ w.equipment.equipment_number }}</td>
+        <td><span class="badge {% if w.priority == 'URGENT' %}danger{% elif w.priority == 'HIGH' %}warning{% else %}muted{% endif %}">{{ w.get_priority_display }}</span></td>
+        <td>{{ w.get_status_display }}</td>
+        <td>{{ w.assigned_to|default:'—' }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Açık iş emri yok. ✅</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <h2>⚠️ Vadesi Geçen Kalibrasyonlar</h2>
+  <table class="data">
+    <thead><tr><th>Ekipman</th><th>Parametre</th><th>Son Kalibrasyon</th><th>Vade</th></tr></thead>
+    <tbody>
+    {% for c in overdue_cal %}
+      <tr>
+        <td>{{ c.equipment.equipment_number }}</td>
+        <td>{{ c.parameter }}</td>
+        <td>{{ c.last_calibrated_on|date:'d.m.Y'|default:'Hiç' }}</td>
+        <td><span class="badge danger">{{ c.next_due_date|date:'d.m.Y' }}</span></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Vadesi geçen kalibrasyon yok. ✅</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

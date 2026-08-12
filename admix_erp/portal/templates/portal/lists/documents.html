@@ -1,0 +1,13 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Dokümanlar (SOP / WI){% endblock %}
+{% block content %}
+<div class="panel">
+<table class="data"><thead><tr><th>Doküman No</th><th>Başlık</th><th>Kategori</th><th>Süreç Sahibi</th><th>Durum</th></tr></thead><tbody>
+{% for d in docs %}
+<tr><td>{{ d.document_number }}</td><td>{{ d.title }}</td><td>{{ d.category.name }}</td>
+<td>{{ d.process_owner.get_full_name|default:d.process_owner.username }}</td>
+<td><span class="badge {% if d.status == 'ACTIVE' %}success{% else %}muted{% endif %}">{{ d.get_status_display }}</span></td></tr>
+{% empty %}<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px">Doküman yok.</td></tr>
+{% endfor %}</tbody></table>
+</div>
+{% endblock %}

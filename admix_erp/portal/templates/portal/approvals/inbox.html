@@ -1,0 +1,47 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Onay Bekleyenler{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <h2>📥 Size Gelen Onay Talepleri ({{ pending|length }})</h2>
+  <table class="data">
+    <thead><tr>
+      <th>Talep Zamanı</th><th>Tür</th><th>Başlık</th><th>Talep Eden</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for ar in pending %}
+      <tr>
+        <td>{{ ar.created_at|date:'d.m.Y H:i' }}</td>
+        <td><span class="badge info">{{ ar.get_kind_display }}</span></td>
+        <td>{{ ar.title }}</td>
+        <td>{{ ar.requested_by.get_full_name|default:ar.requested_by.username }}</td>
+        <td><a href="{% url 'portal:approval_decide' ar.pk %}" class="btn btn-primary">İncele</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px">✅ Onay bekleyen talep yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if my_requests %}
+<div class="panel">
+  <h2>📤 Sizin Açtığınız Talepler (son 15)</h2>
+  <table class="data">
+    <thead><tr><th>Zaman</th><th>Tür</th><th>Başlık</th><th>Onaylayacak Rol</th><th>Durum</th></tr></thead>
+    <tbody>
+    {% for ar in my_requests %}
+      <tr>
+        <td>{{ ar.created_at|date:'d.m.Y H:i' }}</td>
+        <td>{{ ar.get_kind_display }}</td>
+        <td>{{ ar.title }}</td>
+        <td>{{ ar.required_role }}</td>
+        <td><span class="badge {% if ar.status == 'APPROVED' %}success{% elif ar.status == 'REJECTED' %}danger{% elif ar.status == 'PENDING' %}warning{% else %}muted{% endif %}">{{ ar.get_status_display }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

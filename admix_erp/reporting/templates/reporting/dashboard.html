@@ -1,0 +1,112 @@
+{% extends "reporting/_base.html" %}
+{% block section %}Üretim Dashboard{% endblock %}
+{% block content %}
+
+<form class="filter" method="get">
+  <div><label>Başlangıç</label><input type="date" name="from" value="{{ date_from|date:'Y-m-d' }}"></div>
+  <div><label>Bitiş</label><input type="date" name="to" value="{{ date_to|date:'Y-m-d' }}"></div>
+  <button type="submit">Filtrele</button>
+</form>
+
+<div class="cards">
+  <div class="card">
+    <div class="label">Parti Sayısı</div>
+    <div class="value">{{ summary.total_batches }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Hedef Toplam (kg)</div>
+    <div class="value">{{ summary.total_target_qty|floatformat:2 }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Gerçek Toplam (kg)</div>
+    <div class="value">{{ summary.total_actual_qty|floatformat:2 }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Toplam Maliyet</div>
+    <div class="value">{{ summary.total_cost|floatformat:2 }}</div>
+    <div class="sub">Ort. kg başı: {{ summary.avg_per_kg_cost|default:"—" }}</div>
+  </div>
+</div>
+
+<h2>Durum Dağılımı</h2>
+<table>
+  <thead><tr><th>Durum</th><th class="num">Adet</th></tr></thead>
+  <tbody>
+  {% for status, n in summary.status_counts.items %}
+    <tr><td>{{ status }}</td><td class="num">{{ n }}</td></tr>
+  {% empty %}
+    <tr><td colspan="2">Kayıt yok.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>En Yüksek Fireli Partiler (Top 5)</h2>
+<table>
+  <thead><tr>
+    <th>Parti</th><th>Ürün</th>
+    <th class="num">Hedef</th><th class="num">Gerçek</th>
+    <th class="num">Fire (kg)</th><th class="num">Fire %</th>
+    <th class="num">Toplam Maliyet</th>
+  </tr></thead>
+  <tbody>
+  {% for b in summary.top_waste %}
+    <tr>
+      <td>{{ b.batch_number }}</td>
+      <td>{{ b.product }}</td>
+      <td class="num">{{ b.target_qty }}</td>
+      <td class="num">{{ b.actual_qty|default:"—" }}</td>
+      <td class="num bad">{{ b.waste_qty }}</td>
+      <td class="num bad">{{ b.waste_pct }}%</td>
+      <td class="num">{{ b.total_cost }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7">Fire kaydı yok.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Hammadde Tüketimi</h2>
+<table>
+  <thead><tr>
+    <th>Kod</th><th>Ad</th>
+    <th class="num">Toplam Ağırlık</th>
+    <th class="num">Parti Sayısı</th>
+  </tr></thead>
+  <tbody>
+  {% for c in consumption %}
+    <tr>
+      <td>{{ c.raw_material }}</td>
+      <td>{{ c.name }}</td>
+      <td class="num">{{ c.total_weight|floatformat:4 }}</td>
+      <td class="num">{{ c.n_batches }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4">Tüketim kaydı yok.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Partiler ({{ summary.batches|length }})</h2>
+<table>
+  <thead><tr>
+    <th>Parti</th><th>Ürün</th>
+    <th class="num">Hedef</th><th class="num">Gerçek</th>
+    <th class="num">Toplam Maliyet</th><th class="num">kg başı</th>
+  </tr></thead>
+  <tbody>
+  {% for b in summary.batches %}
+    <tr>
+      <td><a href="{% url 'reporting:batch_report' b.batch_id %}">{{ b.batch_number }}</a></td>
+      <td>{{ b.product }}</td>
+      <td class="num">{{ b.target_qty }}</td>
+      <td class="num">{{ b.actual_qty|default:"—" }}</td>
+      <td class="num">{{ b.total_cost }}</td>
+      <td class="num">{{ b.per_kg_cost|default:"—" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6">Parti yok.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

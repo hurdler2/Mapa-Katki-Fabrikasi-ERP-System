@@ -1,0 +1,87 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Decision · {{ decision.decision_id }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:14px">
+  <a href="{% url 'portal:case_detail' decision.case.case_id %}">← Case: {{ decision.case.case_id }}</a>
+</div>
+
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px">
+    <div>
+      <h2 style="margin:0">{{ decision.decision_id }}</h2>
+      <div style="color:var(--text-muted);margin-top:4px">
+        {{ decision.get_level_display }} · {{ decision.decision_date|date:"d.m.Y H:i" }}
+      </div>
+    </div>
+    <span class="badge
+      {% if decision.status == 'PASS' or decision.status == 'CLOSE' or decision.status == 'RELEASE' %}success
+      {% elif decision.status == 'CONDITIONAL' %}warning
+      {% elif decision.status == 'REJECT' or decision.status == 'ROLLBACK' or decision.status == 'HOLD' %}danger
+      {% else %}muted{% endif %}" style="font-size:14px;padding:8px 16px">
+      {{ decision.get_status_display }}
+    </span>
+  </div>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Yetki (NAV-002 §4)</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:220px">Karar veren</th><td>{{ decision.decision_maker.get_full_name|default:decision.decision_maker.username }}</td></tr>
+    <tr><th>Delege edilmiş yetki</th><td>{{ decision.delegated_authority|default:"—" }}</td></tr>
+    <tr><th>Bağımsız inceleyenler</th><td>
+      {% for u in decision.independent_reviewers.all %}
+        <span class="badge muted">{{ u.username }}</span>
+      {% empty %}—{% endfor %}
+    </td></tr>
+    <tr><th>Veto sahibi rol</th><td>{{ decision.veto_holder_role|default:"—" }}</td></tr>
+  </table>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Karar zinciri</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:220px">Değerlendirilen seçenekler</th><td>{{ decision.options_considered|linebreaks }}</td></tr>
+    <tr><th>Varsayımlar</th><td>{{ decision.assumptions|linebreaks|default:"—" }}</td></tr>
+    <tr><th>Gerekçe</th><td>{{ decision.rationale|linebreaks }}</td></tr>
+    <tr><th>Karşı görüş / veto</th><td>{{ decision.dissent_or_veto|linebreaks|default:"—" }}</td></tr>
+    <tr><th>İncelenen kanıtlar</th><td>
+      {% for e in decision.evidence_reviewed.all %}
+        <span class="badge muted">{{ e.evidence_id }}</span>
+      {% empty %}—{% endfor %}
+    </td></tr>
+  </table>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Koşullar & takip</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:220px">Koşullar (CONDITIONAL PASS)</th><td>{{ decision.conditions|linebreaks|default:"—" }}</td></tr>
+    <tr><th>Aksiyon sahibi</th><td>{{ decision.action_owner.username|default:"—" }}</td></tr>
+    <tr><th>Son tarih</th><td>{{ decision.due_date|date:"d.m.Y"|default:"—" }}</td></tr>
+    <tr><th>Kabul kanıtı</th><td>{{ decision.acceptance_evidence|linebreaks|default:"—" }}</td></tr>
+    <tr><th>Eskalasyon tetikleyicisi</th><td>{{ decision.escalation_trigger|linebreaks|default:"—" }}</td></tr>
+    <tr><th>Yeniden açma tetikleyicisi</th><td>{{ decision.reopen_trigger|linebreaks|default:"—" }}</td></tr>
+  </table>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">E-imzalar (21 CFR Part 11)</h3>
+  {% if decision.signatures.all %}
+  <table class="data">
+    <thead><tr>
+      <th>İmzalayan</th><th>Anlam</th><th>Sebep</th><th>IP</th><th>Zaman</th>
+    </tr></thead>
+    <tbody>
+    {% for s in decision.signatures.all %}
+      <tr>
+        <td>{{ s.signer.get_full_name|default:s.signer.username }}</td>
+        <td><span class="badge
+          {% if s.meaning == 'APPROVED' %}success
+          {% elif s.meaning == 'VETOED' %}danger
+          {% else %}info{% endif %}">{{ s.meaning }}</span></td>
+        <td>{{ s.reason }}</td>
+        <td style="font-family:monospace;font-size:11px">{{ s.ip_address|default:"—" }}</td>
+        <td>{{ s.signed_at|date:"d.m.Y H:i:s" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p style="color:var(--text-muted)">Bu karar için henüz e-imza kaydedilmedi.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

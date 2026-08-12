@@ -1,0 +1,71 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}İSG / Çevre Ana Ekran{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">EHS</div>
+<a class="menu-item active" href="{% url 'portal:ehs' %}"><span class="icon">🦺</span> Ana Ekran</a>
+<a class="menu-item" href="/admin/ehs/incident/add/"><span class="icon">🚨</span> Olay Bildir</a>
+<a class="menu-item" href="/admin/ehs/incident/"><span class="icon">📋</span> Olaylar</a>
+<a class="menu-item" href="/admin/ehs/workpermit/add/"><span class="icon">📝</span> Yeni İş İzni</a>
+<a class="menu-item" href="/admin/ehs/workpermit/"><span class="icon">✅</span> İş İzinleri</a>
+<a class="menu-item" href="/admin/ehs/ppeitem/"><span class="icon">🥽</span> KKD</a>
+<a class="menu-item" href="/admin/chemicals/safetydatasheet/"><span class="icon">📄</span> SDS</a>
+{% endblock %}
+
+{% block topbar_extra %}
+<a href="/admin/ehs/incident/add/" class="btn btn-primary">🚨 Olay Bildir</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi warning">
+    <div class="label">Açık Olay</div>
+    <div class="value">{{ open_incidents|length }}</div>
+  </div>
+  <div class="kpi success">
+    <div class="label">Aktif İş İzni</div>
+    <div class="value">{{ active_permits|length }}</div>
+  </div>
+</div>
+
+<div class="panel-grid-2">
+  <div class="panel">
+    <h2>🚨 Açık Olaylar</h2>
+    <table class="data">
+      <thead><tr><th>Olay No</th><th>Tip</th><th>Ağırlık</th><th>Yer</th><th>Zaman</th></tr></thead>
+      <tbody>
+      {% for i in open_incidents %}
+        <tr>
+          <td><a href="/admin/ehs/incident/{{ i.pk }}/change/">{{ i.incident_number }}</a></td>
+          <td>{{ i.get_type_display }}</td>
+          <td><span class="badge {% if i.severity == 'FATAL' or i.severity == 'SERIOUS' %}danger{% elif i.severity == 'MAJOR' or i.severity == 'LOST_TIME' %}warning{% else %}muted{% endif %}">{{ i.get_severity_display }}</span></td>
+          <td>{{ i.location }}</td>
+          <td>{{ i.occurred_at|date:'d.m.Y H:i' }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Açık olay yok. ✅</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>✅ Aktif İş İzinleri</h2>
+    <table class="data">
+      <thead><tr><th>İzin No</th><th>Tip</th><th>Yer</th><th>Bitiş</th></tr></thead>
+      <tbody>
+      {% for p in active_permits %}
+        <tr>
+          <td>{{ p.permit_number }}</td>
+          <td>{{ p.get_type_display }}</td>
+          <td>{{ p.location }}</td>
+          <td>{{ p.valid_until|date:'d.m.Y H:i' }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Aktif iş izni yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

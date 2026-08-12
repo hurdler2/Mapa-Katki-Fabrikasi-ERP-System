@@ -1,0 +1,13 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Yönetim Gözden Geçirme{% endblock %}
+{% block content %}
+<div class="panel">
+<table class="data"><thead><tr><th>Toplantı No</th><th>Tarih</th><th>Başkan</th><th>Durum</th></tr></thead><tbody>
+{% for r in reviews %}
+<tr><td>{{ r.review_number }}</td><td>{{ r.meeting_date|date:'d.m.Y' }}</td>
+<td>{{ r.chairperson.get_full_name|default:r.chairperson.username }}</td>
+<td><span class="badge {% if r.status == 'HELD' %}success{% elif r.status == 'CLOSED' %}muted{% else %}info{% endif %}">{{ r.get_status_display }}</span></td></tr>
+{% empty %}<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:30px">MR toplantısı yok.</td></tr>
+{% endfor %}</tbody></table>
+</div>
+{% endblock %}

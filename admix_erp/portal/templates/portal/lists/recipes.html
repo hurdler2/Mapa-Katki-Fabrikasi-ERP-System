@@ -1,0 +1,22 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Reçeteler{% endblock %}
+{% block content %}
+<div class="panel">
+  <table class="data">
+    <thead><tr><th>Ürün</th><th>Versiyon</th><th class="num">Base Batch Size</th><th>Aktif</th><th>Yürürlük</th></tr></thead>
+    <tbody>
+    {% for r in recipes %}
+      <tr>
+        <td><strong>{{ r.product.code }}</strong> · {{ r.product.name }}</td>
+        <td>v{{ r.version }}</td>
+        <td class="num">{{ r.base_batch_size }} {{ r.unit.code }}</td>
+        <td>{% if r.is_active %}<span class="badge success">Aktif</span>{% else %}<span class="badge muted">Pasif</span>{% endif %}</td>
+        <td>{{ r.effective_date|date:'d.m.Y'|default:'—' }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px">Reçete yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

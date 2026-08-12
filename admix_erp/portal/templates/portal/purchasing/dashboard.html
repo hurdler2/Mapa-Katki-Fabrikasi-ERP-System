@@ -1,0 +1,70 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Satın Alma Ana Ekran{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Satın Alma</div>
+<a class="menu-item active" href="{% url 'portal:purchasing' %}"><span class="icon">🛒</span> Ana Ekran</a>
+<a class="menu-item" href="/admin/purchasing/purchaseorder/add/"><span class="icon">➕</span> Yeni PO</a>
+<a class="menu-item" href="/admin/purchasing/purchaseorder/"><span class="icon">📋</span> Siparişler</a>
+<a class="menu-item" href="/admin/purchasing/goodsreceipt/"><span class="icon">📥</span> Mal Kabuller</a>
+<a class="menu-item" href="/admin/masterdata/supplier/"><span class="icon">🏭</span> Tedarikçiler</a>
+<a class="menu-item" href="/admin/mrp/mrprun/"><span class="icon">📊</span> MRP</a>
+{% endblock %}
+
+{% block topbar_extra %}
+<a href="/admin/purchasing/purchaseorder/add/" class="btn btn-primary">+ Yeni Satın Alma Siparişi</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Açık PO</div>
+    <div class="value">{{ open_pos|length }}</div>
+  </div>
+  <div class="kpi success">
+    <div class="label">Son Mal Kabuller</div>
+    <div class="value">{{ recent_grs|length }}</div>
+  </div>
+</div>
+
+<div class="panel-grid-2">
+  <div class="panel">
+    <h2>📋 Açık Satın Alma Siparişleri</h2>
+    <table class="data">
+      <thead><tr><th>PO No</th><th>Tedarikçi</th><th>Tarih</th><th>Beklenen</th><th>Durum</th></tr></thead>
+      <tbody>
+      {% for p in open_pos %}
+        <tr>
+          <td><a href="/admin/purchasing/purchaseorder/{{ p.pk }}/change/">{{ p.order_number }}</a></td>
+          <td>{{ p.supplier.name }}</td>
+          <td>{{ p.order_date|date:'d.m.Y' }}</td>
+          <td>{{ p.expected_date|date:'d.m.Y'|default:'—' }}</td>
+          <td><span class="badge {% if p.status == 'PARTIAL' %}warning{% else %}info{% endif %}">{{ p.get_status_display }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Açık PO yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>📥 Son Mal Kabuller</h2>
+    <table class="data">
+      <thead><tr><th>Kabul No</th><th>Tedarikçi</th><th>Tarih</th><th>PO</th></tr></thead>
+      <tbody>
+      {% for g in recent_grs %}
+        <tr>
+          <td>{{ g.receipt_number }}</td>
+          <td>{{ g.supplier.name }}</td>
+          <td>{{ g.received_date|date:'d.m.Y' }}</td>
+          <td>{{ g.po.order_number|default:'—' }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Mal kabul yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

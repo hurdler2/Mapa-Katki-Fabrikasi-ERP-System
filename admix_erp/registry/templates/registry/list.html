@@ -1,0 +1,104 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Kontrollü Kod Register (MCOS) · {{ total_codes }} kimlik{% endblock %}
+
+{% block content %}
+
+<div class="panel">
+  <div style="margin-bottom:14px;color:var(--text-muted);font-size:13px">
+    <strong>MCOS Master Project Package 001+</strong> — SARL MAPA ALGÉRIE için tanımlı 247+ kontrollü kimlik.
+    Her kod bir <strong>şablon</strong>dur; gerçek işlem <em>Record Instance</em> alır (Faz D).
+    Format: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">MAPA-&lt;Function&gt;-&lt;Type&gt;-&lt;Subject?&gt;-&lt;Seq&gt;</code>
+  </div>
+
+  <form method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase;letter-spacing:0.04em">Arama</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="kod, başlık, sahip..."
+             style="padding:8px;border:1px solid var(--border);border-radius:6px;min-width:220px">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Fonksiyon</label>
+      <select name="function" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code in functions %}
+          <option value="{{ code }}" {% if fn == code %}selected{% endif %}>{{ code }} · {{ function_labels|default_if_none:''|dictsort:0 }}{{ code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Tip</label>
+      <select name="type" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code in types %}
+          <option value="{{ code }}" {% if tp == code %}selected{% endif %}>{{ code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Seviye</label>
+      <select name="level" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code in levels %}
+          <option value="{{ code }}" {% if lv == code %}selected{% endif %}>{{ code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Filtrele</button>
+    <a href="{% url 'portal:registry_list' %}" style="align-self:center">Temizle</a>
+  </form>
+</div>
+
+<div class="panel">
+  <div style="margin-bottom:10px;color:var(--text-muted);font-size:13px">
+    Gösterilen: <strong>{{ filtered_count }}</strong> / Toplam: <strong>{{ total_codes }}</strong>
+  </div>
+  <table class="data">
+    <thead><tr>
+      <th>Full Code</th>
+      <th>Alias</th>
+      <th>Başlık</th>
+      <th>Tip</th>
+      <th>Seviye</th>
+      <th>Fonksiyon</th>
+      <th>Sahip Rol</th>
+      <th>Durum</th>
+    </tr></thead>
+    <tbody>
+    {% for code in page.object_list %}
+      <tr>
+        <td><a href="{% url 'portal:registry_detail' code.pk %}"><strong>{{ code.full_code }}</strong></a></td>
+        <td style="color:var(--text-muted);font-size:12px">{{ code.short_alias|default:"—" }}</td>
+        <td>{{ code.title }}</td>
+        <td><span class="badge muted">{{ code.type }}</span></td>
+        <td><span class="badge info">{{ code.level }}</span></td>
+        <td><span class="badge muted">{{ code.function }}</span></td>
+        <td style="font-size:12px">{{ code.owner_role|truncatechars:32 }}</td>
+        <td>
+          <span class="badge
+            {% if code.status == 'AC' %}success
+            {% elif code.status == 'IS' %}info
+            {% elif code.status == 'DR' %}muted
+            {% elif code.status == 'AR' %}warning
+            {% else %}muted{% endif %}">{{ code.get_status_display }}</span>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px">Kod bulunamadı.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page.has_other_pages %}
+    <div style="margin-top:16px;text-align:center;font-size:13px">
+      {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}&q={{ q }}&function={{ fn }}&type={{ tp }}&level={{ lv }}&status={{ st }}">← Önceki</a>
+      {% endif %}
+      Sayfa {{ page.number }} / {{ page.paginator.num_pages }}
+      {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}&q={{ q }}&function={{ fn }}&type={{ tp }}&level={{ lv }}&status={{ st }}">Sonraki →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

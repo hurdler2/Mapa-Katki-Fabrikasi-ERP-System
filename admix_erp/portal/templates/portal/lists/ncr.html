@@ -1,0 +1,15 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Uygunsuzluk (NCR){% endblock %}
+{% block content %}
+<div class="panel">
+<table class="data"><thead><tr><th>NCR No</th><th>Kaynak</th><th>Ağırlık</th><th>Başlık</th><th>Durum</th><th>Tespit</th></tr></thead><tbody>
+{% for n in page.object_list %}
+<tr><td>{{ n.ncr_number }}</td><td>{{ n.get_source_display }}</td>
+<td><span class="badge {% if n.severity == 'CRITICAL' or n.severity == 'HIGH' %}danger{% elif n.severity == 'MEDIUM' %}warning{% else %}muted{% endif %}">{{ n.get_severity_display }}</span></td>
+<td>{{ n.title }}</td>
+<td><span class="badge {% if n.status == 'CLOSED' %}success{% elif n.status == 'OPEN' %}warning{% else %}info{% endif %}">{{ n.get_status_display }}</span></td>
+<td>{{ n.detected_at|date:'d.m.Y' }}</td></tr>
+{% empty %}<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px">NCR yok.</td></tr>
+{% endfor %}</tbody></table>
+</div>
+{% endblock %}

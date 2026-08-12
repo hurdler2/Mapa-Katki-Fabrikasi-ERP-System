@@ -1,0 +1,30 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}QC Test Sonuçları{% endblock %}
+{% block content %}
+<div class="panel">
+  <table class="data">
+    <thead><tr><th>Tarih</th><th>Parametre</th><th>Hedef</th><th class="num">Değer</th><th>Sonuç</th><th>Test Eden</th></tr></thead>
+    <tbody>
+    {% for r in page.object_list %}
+      <tr>
+        <td>{{ r.tested_at|date:'d.m.Y H:i' }}</td>
+        <td>{{ r.parameter.code }}</td>
+        <td>{{ r.lot.lot_number|default:r.batch.batch_number|default:'—' }}</td>
+        <td class="num">{{ r.value|default:'—' }}</td>
+        <td><span class="badge {% if r.verdict == 'PASS' %}success{% elif r.verdict == 'FAIL' %}danger{% else %}muted{% endif %}">{{ r.get_verdict_display }}</span></td>
+        <td>{{ r.tester|default:'—' }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px">Test kaydı yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if page.has_other_pages %}
+    <div style="margin-top:16px;text-align:center">
+      {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">← Önceki</a>{% endif %}
+      Sayfa {{ page.number }}/{{ page.paginator.num_pages }}
+      {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Sonraki →</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

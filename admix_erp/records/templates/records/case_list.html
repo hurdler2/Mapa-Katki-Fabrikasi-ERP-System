@@ -1,0 +1,109 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}MCOS Case'ler / Vakalar · {{ total }} kayıt{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <div style="margin-bottom:14px;color:var(--text-muted);font-size:13px">
+    <strong>MCOS 5-Katman ID Modeli (Faz D)</strong> — INCIDENT / NCR / CHANGE / AUDIT / COMPLAINT / DEVIATION / RISK.
+    Her Case bir kez üretilir, yeniden kullanılmaz. GATE-001 T0→T6 zaman damgaları izlenir.
+  </div>
+
+  <form method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Arama</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="case_id, başlık, açıklama..."
+             style="padding:8px;border:1px solid var(--border);border-radius:6px;min-width:220px">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Aile</label>
+      <select name="family" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code, label in families %}
+          <option value="{{ code }}" {% if family == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Durum</label>
+      <select name="status" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code, label in statuses %}
+          <option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Şiddet</label>
+      <select name="severity" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code, label in severities %}
+          <option value="{{ code }}" {% if severity == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Filtrele</button>
+    <a href="{% url 'portal:case_list' %}" style="align-self:center">Temizle</a>
+  </form>
+</div>
+
+<div class="panel">
+  <div style="margin-bottom:10px;color:var(--text-muted);font-size:13px">
+    Gösterilen: <strong>{{ filtered }}</strong> / Toplam: <strong>{{ total }}</strong>
+  </div>
+  <table class="data">
+    <thead><tr>
+      <th>Case ID</th>
+      <th>Aile</th>
+      <th>Başlık</th>
+      <th>Şiddet</th>
+      <th>Durum</th>
+      <th>Kapı</th>
+      <th>Kayıtlar</th>
+      <th>Kararlar</th>
+      <th>Tespit</th>
+    </tr></thead>
+    <tbody>
+    {% for case in page.object_list %}
+      <tr>
+        <td><a href="{% url 'portal:case_detail' case.case_id %}"><strong>{{ case.case_id }}</strong></a></td>
+        <td><span class="badge muted">{{ case.get_family_display }}</span></td>
+        <td>{{ case.title|truncatechars:60 }}</td>
+        <td>
+          <span class="badge
+            {% if case.severity == 'SEV1' %}danger
+            {% elif case.severity == 'SEV2' %}warning
+            {% elif case.severity == 'SEV3' %}info
+            {% else %}muted{% endif %}">{{ case.severity }}</span>
+        </td>
+        <td>
+          <span class="badge
+            {% if case.status == 'OPEN' %}warning
+            {% elif case.status == 'INVESTIGATING' %}info
+            {% elif case.status == 'CLOSED' %}success
+            {% else %}muted{% endif %}">{{ case.get_status_display }}</span>
+        </td>
+        <td>{{ case.gate|default:"—" }}</td>
+        <td style="text-align:center">{{ case.n_records }}</td>
+        <td style="text-align:center">{{ case.n_decisions }}</td>
+        <td>{{ case.detected_at|date:"d.m.Y H:i" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px">Case bulunamadı.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page.has_other_pages %}
+    <div style="margin-top:16px;text-align:center;font-size:13px">
+      {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}&q={{ q }}&family={{ family }}&status={{ status }}&severity={{ severity }}">← Önceki</a>
+      {% endif %}
+      Sayfa {{ page.number }} / {{ page.paginator.num_pages }}
+      {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}&q={{ q }}&family={{ family }}&status={{ status }}&severity={{ severity }}">Sonraki →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

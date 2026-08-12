@@ -1,0 +1,236 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: admix-erp 1.0\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+
+# Master data / navigation
+msgid "Kalite"
+msgstr "Quality"
+
+msgid "Üretim"
+msgstr "Production"
+
+msgid "Reçete"
+msgstr "Recipe"
+
+msgid "Reçeteler"
+msgstr "Recipes"
+
+msgid "Reçete Satırı"
+msgstr "Recipe Line"
+
+msgid "Reçete Satırları"
+msgstr "Recipe Lines"
+
+msgid "Ürün"
+msgstr "Product"
+
+msgid "Ürünler"
+msgstr "Products"
+
+msgid "Hammadde"
+msgstr "Raw Material"
+
+msgid "Hammaddeler"
+msgstr "Raw Materials"
+
+msgid "Tedarikçi"
+msgstr "Supplier"
+
+msgid "Tedarikçiler"
+msgstr "Suppliers"
+
+msgid "Müşteri"
+msgstr "Customer"
+
+msgid "Müşteriler"
+msgstr "Customers"
+
+msgid "Kap"
+msgstr "Container"
+
+msgid "Kaplar"
+msgstr "Containers"
+
+msgid "Stok"
+msgstr "Inventory"
+
+msgid "Hammadde Lotu"
+msgstr "Raw Material Lot"
+
+msgid "Hammadde Lotları"
+msgstr "Raw Material Lots"
+
+msgid "Stok Hareketi"
+msgstr "Stock Movement"
+
+msgid "Stok Hareketleri"
+msgstr "Stock Movements"
+
+# Production
+msgid "Üretim Emri"
+msgstr "Production Order"
+
+msgid "Üretim Emirleri"
+msgstr "Production Orders"
+
+msgid "Üretim Partisi"
+msgstr "Production Batch"
+
+msgid "Üretim Partileri"
+msgstr "Production Batches"
+
+msgid "Malzeme Tüketimi"
+msgstr "Material Consumption"
+
+msgid "Malzeme Tüketimleri"
+msgstr "Material Consumptions"
+
+msgid "Mamul Çıkış Kabı"
+msgstr "Output Container"
+
+msgid "Mamul Çıkış Kapları"
+msgstr "Output Containers"
+
+# Quality
+msgid "QC Parametresi"
+msgstr "QC Parameter"
+
+msgid "QC Parametreleri"
+msgstr "QC Parameters"
+
+msgid "QC Spec"
+msgstr "QC Spec"
+
+msgid "QC Spec'ler"
+msgstr "QC Specs"
+
+msgid "QC Test Sonucu"
+msgstr "QC Test Result"
+
+msgid "Analiz Sertifikası (COA)"
+msgstr "Certificate of Analysis (COA)"
+
+# Purchasing
+msgid "Satın Alma"
+msgstr "Purchasing"
+
+msgid "Satın Alma Siparişi"
+msgstr "Purchase Order"
+
+msgid "Satın Alma Siparişleri"
+msgstr "Purchase Orders"
+
+msgid "Mal Kabul"
+msgstr "Goods Receipt"
+
+msgid "Mal Kabuller"
+msgstr "Goods Receipts"
+
+# Sales
+msgid "Satış"
+msgstr "Sales"
+
+msgid "Müşteri Siparişi"
+msgstr "Sales Order"
+
+msgid "Sevkiyat"
+msgstr "Shipment"
+
+msgid "Sevkiyatlar"
+msgstr "Shipments"
+
+# QMS
+msgid "Uygunsuzluk (NCR)"
+msgstr "Nonconformance (NCR)"
+
+msgid "Sapma"
+msgstr "Deviation"
+
+msgid "Müşteri Şikayeti"
+msgstr "Customer Complaint"
+
+# EHS
+msgid "İSG / Çevre Olayı"
+msgstr "EHS Incident"
+
+msgid "İş İzni"
+msgstr "Work Permit"
+
+msgid "PPE (KKD)"
+msgstr "PPE"
+
+# CMMS
+msgid "Ekipman"
+msgstr "Equipment"
+
+msgid "Ekipmanlar"
+msgstr "Equipment"
+
+msgid "İş Emri"
+msgstr "Work Order"
+
+msgid "Bakım Planı (PM)"
+msgstr "Maintenance Plan (PM)"
+
+msgid "Kalibrasyon Planı"
+msgstr "Calibration Schedule"
+
+msgid "Kalibrasyon Kaydı"
+msgstr "Calibration Record"
+
+# Accounting
+msgid "Hesap"
+msgstr "Account"
+
+msgid "Hesap Planı"
+msgstr "Chart of Accounts"
+
+msgid "Fatura"
+msgstr "Invoice"
+
+msgid "Faturalar"
+msgstr "Invoices"
+
+msgid "Ödeme"
+msgstr "Payment"
+
+msgid "Ödemeler"
+msgstr "Payments"
+
+msgid "Mali Yıl"
+msgstr "Fiscal Year"
+
+msgid "TVA Beyanı (G50)"
+msgstr "TVA Declaration (G50)"
+
+msgid "Sabit Kıymet"
+msgstr "Fixed Asset"
+
+msgid "Sabit Kıymetler"
+msgstr "Fixed Assets"
+
+# Notifications / HR / MRP
+msgid "Bildirim"
+msgstr "Notification"
+
+msgid "Bildirimler"
+msgstr "Notifications"
+
+msgid "Vardiya"
+msgstr "Shift"
+
+msgid "Eğitim Kursu"
+msgstr "Training Course"
+
+msgid "İzin Talebi"
+msgstr "Leave Request"
+
+msgid "MRP Koşusu"
+msgstr "MRP Run"
+
+msgid "Satın Alma Talebi"
+msgstr "Purchase Requisition"

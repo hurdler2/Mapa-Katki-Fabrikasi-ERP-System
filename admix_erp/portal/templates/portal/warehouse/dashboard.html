@@ -1,0 +1,104 @@
+{% extends "portal/_base.html" %}
+{% block title %}Depo Portalı{% endblock %}
+{% block topbar %}Stok / Depo Ana Ekran{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Depo</div>
+<a class="menu-item {% if current == 'home' %}active{% endif %}" href="{% url 'portal:warehouse' %}"><span class="icon">📦</span> Ana Ekran</a>
+<a class="menu-item" href="{% url 'portal:warehouse_receipt_new' %}"><span class="icon">📥</span> Yeni Mal Kabul</a>
+<a class="menu-item" href="/admin/inventory/rawmateriallot/"><span class="icon">🧪</span> Tüm Lotlar</a>
+<a class="menu-item" href="/admin/inventory/stockmovement/"><span class="icon">🔄</span> Stok Hareketleri</a>
+<a class="menu-item" href="/admin/chemicals/shelflifealert/"><span class="icon">⚠️</span> Raf Ömrü Alertları</a>
+<a class="menu-item" href="/admin/purchasing/goodsreceipt/"><span class="icon">📋</span> Mal Kabuller</a>
+{% endblock %}
+
+{% block topbar_extra %}
+<a href="{% url 'portal:warehouse_receipt_new' %}" class="btn btn-primary">+ Yeni Mal Kabul</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Bekleyen QC</div>
+    <div class="value">{{ lots_by_status.PENDING|default:0 }}</div>
+    <div class="sub">Kalite testi bekliyor</div>
+  </div>
+  <div class="kpi success">
+    <div class="label">Serbest</div>
+    <div class="value">{{ lots_by_status.RELEASED|default:0 }}</div>
+    <div class="sub">Üretime hazır</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Karantina</div>
+    <div class="value">{{ lots_by_status.QUARANTINE|default:0 }}</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">Reddedilen</div>
+    <div class="value">{{ lots_by_status.REJECTED|default:0 }}</div>
+  </div>
+</div>
+
+{% if alerts %}
+<div class="panel">
+  <h2>⚠️ Raf Ömrü Uyarıları</h2>
+  <table class="data">
+    <thead><tr><th>Lot</th><th>Hammadde</th><th class="num">Kalan Gün</th><th>Seviye</th></tr></thead>
+    <tbody>
+    {% for a in alerts %}
+      <tr>
+        <td>{{ a.lot.lot_number }}</td>
+        <td>{{ a.lot.raw_material.code }}</td>
+        <td class="num">{{ a.days_to_expiry }}</td>
+        <td><span class="badge
+          {% if a.severity == 'EXPIRED' %}danger
+          {% elif a.severity == 'CRITICAL' %}danger
+          {% elif a.severity == 'WARNING' %}warning
+          {% else %}info{% endif %}">{{ a.get_severity_display }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="panel-grid-2">
+  <div class="panel">
+    <h2>📦 Kalite Bekleyen Lotlar</h2>
+    <table class="data">
+      <thead><tr><th>Lot No</th><th>Hammadde</th><th>Tedarikçi</th><th class="num">Miktar</th></tr></thead>
+      <tbody>
+      {% for l in pending_lots %}
+        <tr>
+          <td><a href="/admin/inventory/rawmateriallot/{{ l.pk }}/change/">{{ l.lot_number }}</a></td>
+          <td>{{ l.raw_material.code }}</td>
+          <td>{{ l.supplier.code|default:'—' }}</td>
+          <td class="num">{{ l.remaining_qty }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">QC bekleyen lot yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>✅ Serbest Lotlar (yakın vadeli)</h2>
+    <table class="data">
+      <thead><tr><th>Lot No</th><th>Hammadde</th><th class="num">Kalan</th><th>Vade</th></tr></thead>
+      <tbody>
+      {% for l in released_lots %}
+        <tr>
+          <td>{{ l.lot_number }}</td>
+          <td>{{ l.raw_material.code }}</td>
+          <td class="num">{{ l.remaining_qty }}</td>
+          <td>{{ l.expiry_date|date:'d.m.Y'|default:'—' }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Serbest lot yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

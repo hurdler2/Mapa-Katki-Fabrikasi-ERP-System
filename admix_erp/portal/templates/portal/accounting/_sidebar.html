@@ -1,0 +1,25 @@
+<div class="menu-group">Muhasebe</div>
+<a class="menu-item {% if current == 'home' %}active{% endif %}" href="{% url 'portal:accounting' %}">
+  <span class="icon">📊</span> Ana Ekran
+</a>
+<a class="menu-item {% if current == 'invoices' %}active{% endif %}" href="{% url 'portal:accounting_invoices' %}">
+  <span class="icon">🧾</span> Faturalar
+</a>
+<a class="menu-item" href="/accounting/balance/">
+  <span class="icon">📈</span> Mizan (Balance)
+</a>
+<a class="menu-item" href="/admin/accounting/payment/">
+  <span class="icon">💳</span> Ödemeler
+</a>
+<a class="menu-item" href="/admin/accounting/tvadeclaration/">
+  <span class="icon">📋</span> TVA G50
+</a>
+<a class="menu-item" href="/admin/accounting/fixedasset/">
+  <span class="icon">🏢</span> Sabit Kıymetler
+</a>
+
+<div class="menu-group">Genel</div>
+<a class="menu-item" href="/notifications/">
+  <span class="icon">🔔</span> Bildirimler
+  {% if unread_count %}<span style="background:#dc2626;color:#fff;padding:2px 7px;border-radius:10px;font-size:11px;float:right">{{ unread_count }}</span>{% endif %}
+</a>

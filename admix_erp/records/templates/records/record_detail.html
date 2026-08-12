@@ -1,0 +1,56 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Record Instance · {{ record.record_id }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:14px">
+  <a href="{% url 'portal:case_detail' record.case.case_id %}">← Case: {{ record.case.case_id }}</a>
+</div>
+
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px">
+    <div>
+      <h2 style="margin:0">{{ record.record_id }}</h2>
+      <div style="color:var(--text-muted);margin-top:4px">
+        <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ record.controlled_code.full_code }}</code>
+        · {{ record.controlled_code.title }}
+      </div>
+    </div>
+    <span class="badge
+      {% if record.status == 'APPROVED' or record.status == 'RECORD_COPY' %}success
+      {% elif record.status == 'WORKING' %}warning
+      {% elif record.status == 'REVIEW' %}info
+      {% else %}muted{% endif %}" style="font-size:13px;padding:6px 14px">
+      {{ record.get_status_display }}
+    </span>
+  </div>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">SoD Roller</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:200px">Hazırlayan (Preparer)</th><td>{{ record.preparer.get_full_name|default:record.preparer.username }}</td></tr>
+    <tr><th>İnceleyen (Reviewer)</th><td>{% if record.reviewer %}{{ record.reviewer.get_full_name|default:record.reviewer.username }}{% else %}—{% endif %}</td></tr>
+    <tr><th>Onaylayan (Approver)</th><td>{% if record.approver %}{{ record.approver.get_full_name|default:record.approver.username }}{% else %}—{% endif %}</td></tr>
+  </table>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Zaman çizelgesi</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:200px">Working başlangıç</th><td>{{ record.working_started_at|date:"d.m.Y H:i" }}</td></tr>
+    <tr><th>Review başlangıç</th><td>{{ record.review_started_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+    <tr><th>Onay</th><td>{{ record.approved_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+    <tr><th>Record copy</th><td>{{ record.record_copy_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+  </table>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Arşiv</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:200px">Working path</th><td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ record.working_path|default:"—" }}</code></td></tr>
+    <tr><th>Record copy path</th><td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ record.record_copy_path|default:"—" }}</code></td></tr>
+    <tr><th>Dosya</th><td>{% if record.file %}<a href="{{ record.file.url }}">İndir</a>{% else %}—{% endif %}</td></tr>
+    <tr><th>İmzalı PDF</th><td>{% if record.signed_pdf %}<a href="{{ record.signed_pdf.url }}">İndir</a>{% else %}—{% endif %}</td></tr>
+  </table>
+
+  {% if record.payload %}
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Form verisi (payload)</h3>
+  <pre style="background:#f9fafb;padding:14px;border-radius:6px;overflow-x:auto;font-size:12px">{{ record.payload }}</pre>
+  {% endif %}
+</div>
+
+{% endblock %}

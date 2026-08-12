@@ -1,0 +1,25 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Hammadde Lotları{% endblock %}
+{% block content %}
+<div class="panel">
+<form method="get" style="margin-bottom:14px">
+  <label>Durum:</label>
+  <select name="status" onchange="this.form.submit()">
+    <option value="">Tümü</option>
+    <option value="PENDING" {% if status_f == 'PENDING' %}selected{% endif %}>Beklemede</option>
+    <option value="RELEASED" {% if status_f == 'RELEASED' %}selected{% endif %}>Serbest</option>
+    <option value="QUARANTINE" {% if status_f == 'QUARANTINE' %}selected{% endif %}>Karantina</option>
+    <option value="REJECTED" {% if status_f == 'REJECTED' %}selected{% endif %}>Reddedildi</option>
+  </select>
+</form>
+<table class="data"><thead><tr><th>Lot No</th><th>Hammadde</th><th>Tedarikçi</th><th class="num">Kalan</th><th>Vade</th><th>Durum</th></tr></thead><tbody>
+{% for l in page.object_list %}
+<tr><td>{{ l.lot_number }}</td><td>{{ l.raw_material.code }}</td>
+<td>{{ l.supplier.code|default:'—' }}</td>
+<td class="num">{{ l.remaining_qty }}</td>
+<td>{{ l.expiry_date|date:'d.m.Y'|default:'—' }}</td>
+<td><span class="badge {% if l.qc_status == 'RELEASED' %}success{% elif l.qc_status == 'PENDING' %}info{% elif l.qc_status == 'QUARANTINE' %}warning{% else %}danger{% endif %}">{{ l.get_qc_status_display }}</span></td></tr>
+{% empty %}<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px">Lot yok.</td></tr>
+{% endfor %}</tbody></table>
+</div>
+{% endblock %}

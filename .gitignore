@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+admix_erp/.venv/
+.venv/
+venv/
+env/
+ENV/
+
+# Django
+*.log
+local_settings.py
+staticfiles/
+media/
+admix_erp/media/
+
+# Testing / caches
+.pytest_cache/
+admix_erp/.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code local state (not shared across machines)
+.claude/
+
+# MCOS xlsx extraction artifacts (regenerate from source .xlsx if needed)
+_extracted/
+
+# Ekran görüntüleri (dev sırasında üretilen)
+admix_erp/_screenshots/
+
+# Ortam değişkenleri (secrets)
+.env
+.env.local
+admix_erp/.env
+
+# Migration cache (opsiyonel — normalde commit edilir; buradan çıkarma)
+# NOT: db.sqlite3 seed data içerdiği için commit'e DAHİL edildi

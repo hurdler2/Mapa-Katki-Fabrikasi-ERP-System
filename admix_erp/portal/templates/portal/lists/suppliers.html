@@ -1,0 +1,12 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Tedarikçiler{% endblock %}
+{% block content %}
+<div class="panel">
+<table class="data"><thead><tr><th>Kod</th><th>Ad</th><th>İletişim</th><th>Vergi No</th><th>Aktif</th></tr></thead><tbody>
+{% for s in suppliers %}
+<tr><td>{{ s.code }}</td><td>{{ s.name }}</td><td>{{ s.contact }}</td><td>{{ s.tax_no }}</td>
+<td>{% if s.is_active %}<span class="badge success">Aktif</span>{% else %}<span class="badge muted">Pasif</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px">Tedarikçi yok.</td></tr>
+{% endfor %}</tbody></table>
+</div>
+{% endblock %}

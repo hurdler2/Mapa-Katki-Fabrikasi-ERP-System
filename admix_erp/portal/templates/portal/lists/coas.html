@@ -1,0 +1,13 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Analiz Sertifikaları (COA){% endblock %}
+{% block content %}
+<div class="panel">
+<table class="data"><thead><tr><th>COA No</th><th>Parti</th><th>Ürün</th><th>Durum</th><th>Yayım</th></tr></thead><tbody>
+{% for c in coas %}
+<tr><td>{{ c.coa_number }}</td><td>{{ c.batch.batch_number }}</td><td>{{ c.batch.recipe.product.code }}</td>
+<td><span class="badge {% if c.status == 'ISSUED' %}success{% elif c.status == 'DRAFT' %}muted{% else %}warning{% endif %}">{{ c.get_status_display }}</span></td>
+<td>{{ c.issued_at|date:'d.m.Y'|default:'—' }}</td></tr>
+{% empty %}<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px">COA yok.</td></tr>
+{% endfor %}</tbody></table>
+</div>
+{% endblock %}

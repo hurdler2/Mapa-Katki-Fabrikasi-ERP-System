@@ -1,0 +1,14 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Rol Atanmamış{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:600px;margin:40px auto;text-align:center">
+  <div style="font-size:48px">🔒</div>
+  <h2>Henüz bir role sahip değilsiniz</h2>
+  <p style="color:var(--text-muted)">
+    Sisteme giriş yaptınız fakat size bir rol atanmamış. Lütfen BT ekibiyle iletişime geçin.
+  </p>
+  <p style="margin-top:20px;font-size:13px;color:var(--text-muted)">
+    Kullanıcı: <strong>{{ request.user.username }}</strong>
+  </p>
+</div>
+{% endblock %}

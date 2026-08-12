@@ -1,0 +1,104 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}{{ code.full_code }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:14px">
+  <a href="{% url 'portal:registry_list' %}">← Register listesine dön</a>
+</div>
+
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px">
+    <div>
+      <h2 style="margin:0">{{ code.full_code }}</h2>
+      <div style="color:var(--text-muted);margin-top:4px">
+        {% if code.short_alias %}<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ code.short_alias }}</code> · {% endif %}
+        {{ code.title }}
+      </div>
+    </div>
+    <div>
+      <span class="badge
+        {% if code.status == 'AC' %}success
+        {% elif code.status == 'IS' %}info
+        {% elif code.status == 'DR' %}muted
+        {% elif code.status == 'AR' %}warning
+        {% else %}muted{% endif %}" style="font-size:13px;padding:6px 14px">
+        {{ code.get_status_display }}
+      </span>
+    </div>
+  </div>
+
+  <div class="kpi-grid" style="margin-bottom:24px">
+    <div class="kpi info">
+      <div class="label">Tip</div>
+      <div class="value" style="font-size:18px">{{ code.get_type_display }}</div>
+    </div>
+    <div class="kpi info">
+      <div class="label">Seviye</div>
+      <div class="value" style="font-size:18px">{{ code.get_level_display }}</div>
+    </div>
+    <div class="kpi info">
+      <div class="label">Fonksiyon</div>
+      <div class="value" style="font-size:18px">{{ code.get_function_display }}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Revizyon</div>
+      <div class="value" style="font-size:18px">{{ code.revision }}</div>
+    </div>
+  </div>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Sahiplik & kaynak</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:200px">Sahip rol</th><td>{{ code.owner_role|default:"—" }}</td></tr>
+    <tr><th>Kaynak prosedür</th><td>{{ code.source_procedure|default:"—" }}</td></tr>
+    <tr><th>Paket dalgası</th><td>{{ code.package_wave|default:"—" }}</td></tr>
+    <tr><th>Uygulanabilir iş kolları</th><td>
+      {% for bl in code.business_lines.all %}<span class="badge muted">{{ bl.code }}</span> {% empty %}Tümü (kurumsal){% endfor %}
+    </td></tr>
+  </table>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Aktivasyon & kanıt</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:200px">Aktivasyon kapısı</th><td>{{ code.activation_gate|linebreaks|default:"—" }}</td></tr>
+    <tr><th>Objektif kanıt kuralı</th><td>{{ code.objective_evidence_rule|linebreaks|default:"—" }}</td></tr>
+  </table>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Kullanım</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:200px">Tetik tipi</th><td>{{ code.get_trigger_type_display }}</td></tr>
+    <tr><th>Ana hazırlayan rol</th><td>{{ code.primary_preparer_role|default:"—" }}</td></tr>
+    <tr><th>Review + onay modeli</th><td>{{ code.review_approval_model|linebreaks|default:"—" }}</td></tr>
+    <tr><th>Örnek Record ID</th><td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ code.example_record_id_pattern|default:"—" }}</code></td></tr>
+    <tr><th>Arşiv yolu</th><td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ code.archive_path_pattern|default:"—" }}</code></td></tr>
+    <tr><th>Retention makamı</th><td>{{ code.retention_authority|default:"—" }}</td></tr>
+  </table>
+
+  {% if code.revisions.all %}
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Revizyon geçmişi</h3>
+  <table class="data">
+    <thead><tr>
+      <th>Revizyon</th><th>Tarih</th><th>Durum</th>
+      <th>Değişiklik</th><th>Yetki kaydı</th>
+    </tr></thead>
+    <tbody>
+    {% for rev in code.revisions.all %}
+      <tr>
+        <td>{{ rev.revision }}</td>
+        <td>{{ rev.revision_date|date:'d.m.Y' }}</td>
+        <td><span class="badge muted">{{ rev.get_issue_state_display }}</span></td>
+        <td>{{ rev.change_summary }}</td>
+        <td>{{ rev.authority_record|default:"—" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if code.notes %}
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Notlar / Uygulanabilirlik</h3>
+  <div class="panel" style="background:#f9fafb;box-shadow:none">
+    {{ code.notes|linebreaks }}
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,143 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}{{ case.case_id }} — {{ case.title|truncatechars:60 }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:14px">
+  <a href="{% url 'portal:case_list' %}">← Case listesine dön</a>
+</div>
+
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px">
+    <div>
+      <h2 style="margin:0">{{ case.case_id }}</h2>
+      <div style="color:var(--text-muted);margin-top:4px">
+        <span class="badge muted">{{ case.get_family_display }}</span>
+        {% if case.gate %}· <strong>{{ case.gate }}</strong>{% endif %}
+        {% if case.business_line %}· {{ case.business_line.code }}{% endif %}
+      </div>
+      <h3 style="margin:12px 0 0 0;font-weight:normal">{{ case.title }}</h3>
+    </div>
+    <div style="text-align:right">
+      <span class="badge
+        {% if case.severity == 'SEV1' %}danger
+        {% elif case.severity == 'SEV2' %}warning
+        {% elif case.severity == 'SEV3' %}info
+        {% else %}muted{% endif %}" style="font-size:13px;padding:6px 14px">{{ case.severity }}</span>
+      <br>
+      <span class="badge
+        {% if case.status == 'OPEN' %}warning
+        {% elif case.status == 'INVESTIGATING' %}info
+        {% elif case.status == 'CLOSED' %}success
+        {% else %}muted{% endif %}" style="font-size:13px;padding:6px 14px;margin-top:4px">
+        {{ case.get_status_display }}
+      </span>
+    </div>
+  </div>
+
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:200px">Tespit zamanı</th><td>{{ case.detected_at|date:"d.m.Y H:i" }}</td></tr>
+    <tr><th>Tespit eden</th><td>{{ case.detected_by.get_full_name|default:case.detected_by.username }}</td></tr>
+    <tr><th>Açıklama</th><td>{{ case.description|linebreaks }}</td></tr>
+  </table>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">GATE-001 T-faz zaman çizelgesi</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:200px">T1 Contained</th><td>{{ case.contained_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+    <tr><th>T2 Scope frozen</th><td>{{ case.scope_frozen_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+    <tr><th>T3 Classified</th><td>{{ case.classified_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+    <tr><th>T4 Recovery</th><td>{{ case.recovery_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+    <tr><th>T5 Reconciled</th><td>{{ case.reconciled_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+    <tr><th>T6 CAPA opened</th><td>{{ case.capa_opened_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+    <tr><th>Kapanış</th><td>{{ case.closed_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+  </table>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">📄 Record Instances ({{ records|length }})</h3>
+  {% if records %}
+  <table class="data">
+    <thead><tr>
+      <th>Record ID</th><th>Controlled Code</th><th>Durum</th>
+      <th>Hazırlayan</th><th>İnceleyen</th><th>Onaylayan</th><th>Onay</th>
+    </tr></thead>
+    <tbody>
+    {% for r in records %}
+      <tr>
+        <td><a href="{% url 'portal:record_detail' r.record_id %}"><strong>{{ r.record_id }}</strong></a></td>
+        <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ r.controlled_code.full_code }}</code></td>
+        <td><span class="badge info">{{ r.get_status_display }}</span></td>
+        <td>{{ r.preparer.username }}</td>
+        <td>{{ r.reviewer.username|default:"—" }}</td>
+        <td>{{ r.approver.username|default:"—" }}</td>
+        <td>{{ r.approved_at|date:"d.m.Y"|default:"—" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p style="color:var(--text-muted)">Bu case'e bağlı henüz record instance yok.</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">🔬 Evidence ({{ evidence_list|length }})</h3>
+  {% if evidence_list %}
+  <table class="data">
+    <thead><tr>
+      <th>Evidence ID</th><th>Tip</th><th>Başlık</th>
+      <th>Eşzamanlı</th><th>Orijinal</th><th>SHA-256</th><th>Toplayan</th><th>Zaman</th>
+    </tr></thead>
+    <tbody>
+    {% for e in evidence_list %}
+      <tr>
+        <td><strong>{{ e.evidence_id }}</strong></td>
+        <td><span class="badge muted">{{ e.get_kind_display }}</span></td>
+        <td>{{ e.title|truncatechars:40 }}</td>
+        <td style="text-align:center">{% if e.is_contemporaneous %}✓{% else %}✗{% endif %}</td>
+        <td style="text-align:center">{% if e.is_original %}✓{% else %}✗{% endif %}</td>
+        <td style="font-family:monospace;font-size:11px">{{ e.sha256|slice:":16"|default:"—" }}{% if e.sha256 %}…{% endif %}</td>
+        <td>{{ e.collected_by.username }}</td>
+        <td>{{ e.collected_at|date:"d.m.Y H:i" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p style="color:var(--text-muted)">Henüz evidence toplanmadı.</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">⚖️ Decisions ({{ decisions|length }})</h3>
+  {% if decisions %}
+  <table class="data">
+    <thead><tr>
+      <th>Decision ID</th><th>Seviye</th><th>Sonuç</th>
+      <th>Karar veren</th><th>Tarih</th><th>Veto sahibi</th><th>İmzalar</th>
+    </tr></thead>
+    <tbody>
+    {% for d in decisions %}
+      <tr>
+        <td><a href="{% url 'portal:decision_detail' d.decision_id %}"><strong>{{ d.decision_id }}</strong></a></td>
+        <td><span class="badge info">{{ d.level }}</span></td>
+        <td>
+          <span class="badge
+            {% if d.status == 'PASS' or d.status == 'CLOSE' or d.status == 'RELEASE' %}success
+            {% elif d.status == 'CONDITIONAL' %}warning
+            {% elif d.status == 'REJECT' or d.status == 'ROLLBACK' or d.status == 'HOLD' %}danger
+            {% else %}muted{% endif %}">{{ d.status }}</span>
+        </td>
+        <td>{{ d.decision_maker.username }}</td>
+        <td>{{ d.decision_date|date:"d.m.Y H:i" }}</td>
+        <td>{{ d.veto_holder_role|default:"—" }}</td>
+        <td style="text-align:center">{{ d.signatures.count }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p style="color:var(--text-muted)">Henüz karar kaydedilmedi.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

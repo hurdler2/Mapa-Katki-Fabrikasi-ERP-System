@@ -1,0 +1,91 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Yönetim Ana Ekran{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Yönetim</div>
+<a class="menu-item active" href="{% url 'portal:management' %}"><span class="icon">👔</span> Ana Ekran</a>
+<a class="menu-item" href="/analytics/bi/"><span class="icon">📈</span> BI Dashboard</a>
+<a class="menu-item" href="/analytics/iso-audit/"><span class="icon">📋</span> ISO Denetim Paketi</a>
+<a class="menu-item" href="/reporting/dashboard/"><span class="icon">🏭</span> Üretim Raporu</a>
+<a class="menu-item" href="/accounting/balance/"><span class="icon">💰</span> Muhasebe Mizanı</a>
+<a class="menu-item" href="/admin/governance/managementreview/"><span class="icon">🗂️</span> Yönetim Gözden Geçirme</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi success">
+    <div class="label">Kalite Testleri (30g)</div>
+    <div class="value">{{ qc.total }}</div>
+    <div class="sub">FAIL: {{ qc.fail_pct }}%</div>
+  </div>
+  <div class="kpi {% if aging.ncr_open > 5 %}warning{% else %}info{% endif %}">
+    <div class="label">Açık NCR</div>
+    <div class="value">{{ aging.ncr_open }}</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Açık CAPA</div>
+    <div class="value">{{ aging.capa_open }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>⚙️ Ekipman OEE</h2>
+  <table class="data">
+    <thead><tr><th>Ekipman</th><th>Ad</th><th class="num">Availability %</th><th class="num">Performance %</th><th class="num">Quality %</th><th class="num">OEE %</th></tr></thead>
+    <tbody>
+    {% for o in oee %}
+      <tr>
+        <td>{{ o.equipment }}</td>
+        <td>{{ o.name }}</td>
+        <td class="num">{{ o.availability_pct }}</td>
+        <td class="num">{{ o.performance_pct }}</td>
+        <td class="num">{{ o.quality_pct }}</td>
+        <td class="num"><strong>{{ o.oee_pct }}</strong></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Reaktör yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel-grid-2">
+  <div class="panel">
+    <h2>📉 Aylık Fire Trendi</h2>
+    <canvas id="wasteChart"></canvas>
+  </div>
+  <div class="panel">
+    <h2>📞 Müşteri Şikayet Trendi</h2>
+    <canvas id="complaintChart"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_body %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const waste = {{ waste_json|safe }};
+new Chart(document.getElementById('wasteChart'), {
+  type: 'line',
+  data: {
+    labels: waste.map(d => d.month),
+    datasets: [
+      {label:'Fire (kg)', data: waste.map(d => d.waste_qty), borderColor:'#dc2626', backgroundColor:'#fee2e2', fill: true, tension: 0.3},
+    ],
+  },
+  options: {plugins:{legend:{position:'bottom'}}}
+});
+const comp = {{ complaints_json|safe }};
+new Chart(document.getElementById('complaintChart'), {
+  type: 'bar',
+  data: {
+    labels: comp.map(d => d.month),
+    datasets: [
+      {label:'Toplam Şikayet', data: comp.map(d => d.total), backgroundColor:'#ea580c'},
+      {label:'Çözüldü', data: comp.map(d => d.resolved), backgroundColor:'#16a34a'},
+    ],
+  },
+  options: {plugins:{legend:{position:'bottom'}}}
+});
+</script>
+{% endblock %}

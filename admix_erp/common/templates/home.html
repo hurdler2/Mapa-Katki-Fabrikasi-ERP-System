@@ -1,0 +1,119 @@
+{% extends "reporting/_base.html" %}
+{% block section %}Ana Ekran{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:24px">
+  <h2 style="margin-top:0">Hoş geldin, {{ request.user.get_username }}</h2>
+  <p style="color:#6b7280;font-size:13px">
+    Roller:
+    {% for r in user_roles %}<span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:4px;margin-right:4px">{{ r }}</span>{% empty %}(rol atanmamış){% endfor %}
+    {% if is_super %}<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px">SUPERUSER</span>{% endif %}
+  </p>
+</div>
+
+<h2 style="margin-top:0">Anahtar Göstergeler (Son 30 gün)</h2>
+<div class="cards">
+  <div class="card">
+    <div class="label">Üretilen Parti</div>
+    <div class="value">{{ kpis.batches_30d }}</div>
+    <div class="sub">Serbest: <span class="ok">{{ kpis.batches_released_30d }}</span></div>
+  </div>
+  <div class="card">
+    <div class="label">Bekleyen Lot (QC)</div>
+    <div class="value {% if kpis.pending_lots > 0 %}bad{% endif %}">{{ kpis.pending_lots }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Yayımlanan COA</div>
+    <div class="value ok">{{ kpis.coa_issued_30d }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Açık NCR / CAPA</div>
+    <div class="value {% if kpis.open_ncr > 0 %}bad{% endif %}">{{ kpis.open_ncr }} / {{ kpis.open_capa }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Açık İş Emri</div>
+    <div class="value">{{ kpis.wo_open }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Vadesi Geçen Kalibrasyon</div>
+    <div class="value {% if kpis.calibration_overdue > 0 %}bad{% endif %}">{{ kpis.calibration_overdue }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Raf Ömrü Alertı</div>
+    <div class="value {% if kpis.shelf_alerts_open > 0 %}bad{% endif %}">{{ kpis.shelf_alerts_open }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Okunmamış Bildirim</div>
+    <div class="value {% if kpis.unread_notifications > 0 %}bad{% endif %}">{{ kpis.unread_notifications }}</div>
+    <div class="sub"><a href="/notifications/">Aç →</a></div>
+  </div>
+</div>
+
+<h2>Modüller</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+  <a href="/reporting/dashboard/" class="modcard" style="background:#dbeafe">
+    <div class="modtitle">📊 Üretim Dashboard</div>
+    <div class="modsub">Parti listesi · Fire trendi · Hammadde tüketimi</div>
+  </a>
+  <a href="/analytics/bi/" class="modcard" style="background:#ede9fe">
+    <div class="modtitle">📈 BI Dashboard</div>
+    <div class="modsub">OEE · Tedarikçi skorkartı · Şikayet trendi</div>
+  </a>
+  <a href="/analytics/iso-audit/" class="modcard" style="background:#fef3c7">
+    <div class="modtitle">📋 ISO Denetim Paketi</div>
+    <div class="modsub">Tek tıkla denetçi paketi (PDF/JSON/ZIP)</div>
+  </a>
+  <a href="/accounting/balance/" class="modcard" style="background:#dcfce7">
+    <div class="modtitle">💰 Muhasebe · Mizan</div>
+    <div class="modsub">SCF hesap planı · Grand Livre · Balance</div>
+  </a>
+  <a href="/notifications/" class="modcard" style="background:#fee2e2">
+    <div class="modtitle">🔔 Bildirim Kutusu</div>
+    <div class="modsub">
+      {% if kpis.unread_notifications %}
+        <strong>{{ kpis.unread_notifications }} okunmamış</strong>
+      {% else %}
+        Tüm bildirimler okundu
+      {% endif %}
+    </div>
+  </a>
+  <a href="/api/v1/" class="modcard" style="background:#f3e8ff">
+    <div class="modtitle">🔌 REST API</div>
+    <div class="modsub">JWT auth · 18 endpoint · trace action'ları</div>
+  </a>
+</div>
+
+<h2>Django Admin Kısayolları</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+  <a href="/admin/production/productionbatch/" class="quicklink">Üretim Partileri</a>
+  <a href="/admin/inventory/rawmateriallot/" class="quicklink">Hammadde Lotları</a>
+  <a href="/admin/quality/certificateofanalysis/" class="quicklink">COA'lar</a>
+  <a href="/admin/qms/nonconformance/" class="quicklink">NCR'lar</a>
+  <a href="/admin/qms/capa/" class="quicklink">CAPA'lar</a>
+  <a href="/admin/ehs/incident/" class="quicklink">İSG Olayları</a>
+  <a href="/admin/ehs/workpermit/" class="quicklink">İş İzinleri</a>
+  <a href="/admin/cmms/workorder/" class="quicklink">İş Emirleri</a>
+  <a href="/admin/cmms/calibrationschedule/" class="quicklink">Kalibrasyon Planları</a>
+  <a href="/admin/purchasing/purchaseorder/" class="quicklink">Satın Alma Siparişleri</a>
+  <a href="/admin/sales/salesorder/" class="quicklink">Satış Siparişleri</a>
+  <a href="/admin/accounting/invoice/" class="quicklink">Faturalar</a>
+  <a href="/admin/docs/controlleddocument/" class="quicklink">SOP/Dokümanlar</a>
+  <a href="/admin/governance/managementreview/" class="quicklink">Yönetim Gözden Geçirme</a>
+</div>
+
+<style>
+.modcard {
+  display:block;padding:20px;border-radius:10px;text-decoration:none;color:#111827;
+  box-shadow:0 1px 3px rgba(0,0,0,0.08);transition:transform 0.15s;
+}
+.modcard:hover { transform:translateY(-2px); box-shadow:0 4px 10px rgba(0,0,0,0.12); }
+.modtitle { font-size:16px;font-weight:600;margin-bottom:4px }
+.modsub { font-size:12px;color:#4b5563 }
+.quicklink {
+  display:block;padding:10px 14px;background:#fff;border-radius:6px;text-decoration:none;
+  color:#374151;font-size:13px;border:1px solid #e5e7eb;
+}
+.quicklink:hover { border-color:#0369a1; color:#0369a1 }
+</style>
+
+{% endblock %}
