@@ -53,6 +53,13 @@ def home(request: HttpRequest) -> HttpResponse:
         "OPERATIONS_SUPERVISOR": "portal:production",
         "WAREHOUSE":             "portal:warehouse",
         "PURCHASING":            "portal:purchasing",
+        # MCOS Faz B — 6 yeni rol landing
+        "RDT_ENGINEER":          "portal:recipes",             # RDT ürün geliştirme
+        "MLTS_ANALYST":          "portal:quality",             # Kalite lab (MLTS BL)
+        "HSE_OFFICER":           "portal:ehs",                 # EHS panosu
+        "INTERNAL_AUDITOR":      "portal:internal_audits",     # İç tetkik listesi
+        "MAINTENANCE_TECH":      "portal:maintenance",         # CMMS
+        "COMMERCIAL_ENG":        "portal:case_list",           # Şikayet/müşteri case'leri
     }
     if role and role in routes:
         return redirect(routes[role])
