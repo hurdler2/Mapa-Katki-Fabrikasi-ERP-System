@@ -1,0 +1,80 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}MCOS 8-Part Gate'ler · {{ total }} kayıt{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <div style="margin-bottom:14px;color:var(--text-muted);font-size:13px">
+    <strong>MCOS 8-Part Gate Mekanizması (Faz E)</strong> — bir Case veya major geçiş
+    (batch release, doküman activation, ürün launch) 8 bölümlü bir kapıya oturur.
+    Tüm 8 bölüm PASS/CONDITIONAL + evidence + Decision olmadan kapı kapanmaz.
+  </div>
+
+  <form method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Arama</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="gate_id, kapsam, case_id..."
+             style="padding:8px;border:1px solid var(--border);border-radius:6px;min-width:260px">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Durum</label>
+      <select name="status" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code, label in statuses %}
+          <option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Filtrele</button>
+    <a href="{% url 'portal:gate_list' %}" style="align-self:center">Temizle</a>
+  </form>
+</div>
+
+<div class="panel">
+  <div style="margin-bottom:10px;color:var(--text-muted);font-size:13px">
+    Gösterilen: <strong>{{ filtered }}</strong> / Toplam: <strong>{{ total }}</strong>
+  </div>
+  <table class="data">
+    <thead><tr>
+      <th>Gate ID</th><th>Case</th><th>Kapsam</th>
+      <th>Sahip</th><th>Durum</th><th>Açılış</th><th>Kapanış</th>
+    </tr></thead>
+    <tbody>
+    {% for gate in page.object_list %}
+      <tr>
+        <td><a href="{% url 'portal:gate_detail' gate.gate_id %}"><strong>{{ gate.gate_id }}</strong></a></td>
+        <td><a href="{% url 'portal:case_detail' gate.case.case_id %}">{{ gate.case.case_id }}</a></td>
+        <td>{{ gate.scope|truncatechars:60 }}</td>
+        <td>{{ gate.owner.username }}</td>
+        <td>
+          <span class="badge
+            {% if gate.status == 'PASS' %}success
+            {% elif gate.status == 'CONDITIONAL' %}warning
+            {% elif gate.status == 'FAIL' %}danger
+            {% elif gate.status == 'REOPENED' %}info
+            {% elif gate.status == 'HOLD' %}danger
+            {% elif gate.status == 'IN_PROGRESS' %}info
+            {% else %}muted{% endif %}">{{ gate.get_status_display }}</span>
+        </td>
+        <td>{{ gate.opened_at|date:"d.m.Y H:i" }}</td>
+        <td>{{ gate.closed_at|date:"d.m.Y H:i"|default:"—" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">Gate bulunamadı.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page.has_other_pages %}
+    <div style="margin-top:16px;text-align:center;font-size:13px">
+      {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}&q={{ q }}&status={{ status }}">← Önceki</a>
+      {% endif %}
+      Sayfa {{ page.number }} / {{ page.paginator.num_pages }}
+      {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}&q={{ q }}&status={{ status }}">Sonraki →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

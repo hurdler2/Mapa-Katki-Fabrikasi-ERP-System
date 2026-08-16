@@ -1,0 +1,126 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Kural İhlalleri · {{ kpi_blocked }} açık{% endblock %}
+{% block content %}
+
+<div class="kpi-grid" style="margin-bottom:14px">
+  <div class="kpi info">
+    <div class="label">Toplam ihlal</div>
+    <div class="value">{{ kpi_total }}</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">Bloklu (açık)</div>
+    <div class="value">{{ kpi_blocked }}</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Son 7 gün</div>
+    <div class="value">{{ kpi_last_7d }}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Kural katalog</div>
+    <div class="value"><a href="{% url 'portal:rules_catalog' %}" style="font-size:14px">12 kuralı gör →</a></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div style="margin-bottom:14px;color:var(--text-muted);font-size:13px">
+    <strong>Non-Negotiable Rules Enforcer (Faz H)</strong> — CDD-001 §16'daki 12 mutlak kural.
+    Her ihlal denemesi burada log'lanır. Bloklananlar (kayıt engellendi) kırmızı,
+    sadece uyarı (log) olanlar sarı; çözülenler yeşil.
+  </div>
+
+  <form method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Arama</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="reason, target..."
+             style="padding:8px;border:1px solid var(--border);border-radius:6px;min-width:260px">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Kural</label>
+      <select name="rule" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for n, title in rule_titles.items %}
+          <option value="{{ n }}" {% if rule == n|stringformat:"s" %}selected{% endif %}>R{{ n }} · {{ title|truncatechars:44 }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Bloklu</label>
+      <select name="blocked" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">Fark etmez</option>
+        <option value="1" {% if blocked == "1" %}selected{% endif %}>Sadece bloklu</option>
+        <option value="0" {% if blocked == "0" %}selected{% endif %}>Sadece log</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Çözüm</label>
+      <select name="resolved" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">Fark etmez</option>
+        <option value="0" {% if resolved == "0" %}selected{% endif %}>Sadece açık</option>
+        <option value="1" {% if resolved == "1" %}selected{% endif %}>Sadece çözülmüş</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Filtrele</button>
+    <a href="{% url 'portal:violation_list' %}" style="align-self:center">Temizle</a>
+  </form>
+</div>
+
+<div class="panel">
+  <table class="data">
+    <thead><tr>
+      <th>#</th><th>Kural</th><th>Hedef model</th><th>Hedef</th>
+      <th>Aksiyon</th><th>Neden</th><th>Kullanıcı</th><th>Zaman</th>
+      <th>Durum</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for v in page.object_list %}
+      <tr style="background:
+        {% if v.resolved %}#f0fdf4
+        {% elif v.blocked %}#fef2f2
+        {% else %}#fefce8{% endif %}">
+        <td>{{ v.pk }}</td>
+        <td><span class="badge {% if v.blocked %}danger{% else %}warning{% endif %}">R{{ v.rule_no|stringformat:"02d" }}</span> {{ v.rule_title|truncatechars:32 }}</td>
+        <td><code style="font-size:11px">{{ v.target_model }}</code></td>
+        <td>{{ v.target_repr|truncatechars:32 }}</td>
+        <td>{{ v.get_attempted_action_display }}</td>
+        <td>{{ v.reason|truncatechars:60 }}</td>
+        <td>{{ v.user.username|default:"—" }}</td>
+        <td>{{ v.created_at|date:"d.m.Y H:i" }}</td>
+        <td>
+          {% if v.resolved %}
+            <span class="badge success">Çözüldü</span>
+          {% elif v.blocked %}
+            <span class="badge danger">Bloklu</span>
+          {% else %}
+            <span class="badge warning">Log</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if not v.resolved %}
+          <form method="post" action="{% url 'portal:violation_resolve' v.pk %}" style="display:inline">
+            {% csrf_token %}
+            <input type="text" name="note" placeholder="çözüm notu" style="padding:4px;border:1px solid var(--border);border-radius:4px;font-size:11px;width:120px">
+            <button type="submit" class="btn" style="padding:4px 8px;font-size:11px">Çöz</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:30px">Kural ihlali kaydı yok — sistem temiz. 🎉</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page.has_other_pages %}
+    <div style="margin-top:16px;text-align:center;font-size:13px">
+      {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}&q={{ q }}&rule={{ rule }}&blocked={{ blocked }}&resolved={{ resolved }}">← Önceki</a>
+      {% endif %}
+      Sayfa {{ page.number }} / {{ page.paginator.num_pages }}
+      {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}&q={{ q }}&rule={{ rule }}&blocked={{ blocked }}&resolved={{ resolved }}">Sonraki →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

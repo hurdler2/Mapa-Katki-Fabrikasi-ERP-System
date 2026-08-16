@@ -62,6 +62,9 @@ INSTALLED_APPS = [
     "businessline",
     "registry",
     "records",
+    "gates",
+    "master_register",
+    "rules",
 ]
 
 # MCOS uyum fazları — her faz GM tarafından ayrı aktive edilir (audit trail).
@@ -73,13 +76,15 @@ MCOS_ENABLE_CONTROLLED_CODE = os.environ.get(
 MCOS_ENABLE_5LAYER_ID = os.environ.get(
     "MCOS_ENABLE_5LAYER_ID", "1").lower() in {"1", "true", "yes", "on"}
 MCOS_ENABLE_GATE = os.environ.get(
-    "MCOS_ENABLE_GATE", "0").lower() in {"1", "true", "yes", "on"}
+    "MCOS_ENABLE_GATE", "1").lower() in {"1", "true", "yes", "on"}
 MCOS_ENABLE_RETRIEVAL = os.environ.get(
     "MCOS_ENABLE_RETRIEVAL", "0").lower() in {"1", "true", "yes", "on"}
 MCOS_ENABLE_MASTER_REGISTER = os.environ.get(
-    "MCOS_ENABLE_MASTER_REGISTER", "0").lower() in {"1", "true", "yes", "on"}
+    "MCOS_ENABLE_MASTER_REGISTER", "1").lower() in {"1", "true", "yes", "on"}
 MCOS_ENABLE_RULES_ENFORCER = os.environ.get(
     "MCOS_ENABLE_RULES_ENFORCER", "0").lower() in {"1", "true", "yes", "on"}
+# NOT: Default kapalı — mevcut 320+ test ve mevcut iş akışları etkilenmesin.
+# Prod'da GENEL MÜDÜR onayı ile MCOS_ENABLE_RULES_ENFORCER=1 açılır.
 
 # Django REST Framework
 REST_FRAMEWORK = {

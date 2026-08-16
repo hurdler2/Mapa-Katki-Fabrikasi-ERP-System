@@ -1,0 +1,87 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}{{ entry.event_id }} · {{ entry.family }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:14px">
+  <a href="{% url 'portal:master_integrated_list' %}">← Master Register listesi</a> ·
+  <a href="{% url 'portal:case_detail' entry.case.case_id %}">Case: {{ entry.case.case_id }}</a>
+</div>
+
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px">
+    <div>
+      <h2 style="margin:0">{{ entry.event_id }}</h2>
+      <div style="color:var(--text-muted);margin-top:4px">
+        <span class="badge muted">{{ entry.get_family_display }}</span>
+        <span class="badge info">{{ entry.ev_class }}</span>
+        <span class="badge muted">{{ entry.d_level }}</span>
+        · Snapshot chain: <strong>{{ chain_count }}</strong> versiyon
+      </div>
+    </div>
+    <div style="text-align:right">
+      {% if entry.hold_flag %}
+        <span class="badge danger" style="font-size:14px;padding:6px 14px">🔴 HOLD</span><br>
+      {% endif %}
+      <span class="badge
+        {% if entry.status == 'CLOSED' %}success
+        {% elif entry.status == 'REOPENED' %}danger
+        {% elif entry.status == 'OPEN' %}warning
+        {% else %}info{% endif %}" style="font-size:13px;padding:6px 14px;margin-top:4px">
+        {{ entry.get_status_display }}
+      </span>
+    </div>
+  </div>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Bağlam</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:220px">Site / Proses</th><td>{{ entry.site_process }}</td></tr>
+    <tr><th>Kapsam özeti</th><td>{{ entry.scope_summary|linebreaks }}</td></tr>
+    <tr><th>Sahip</th><td>{{ entry.owner.username }}</td></tr>
+    <tr><th>Tespit / Containment</th><td>{{ entry.detection_date|date:"d.m.Y" }} → {{ entry.containment_date|date:"d.m.Y"|default:"—" }}</td></tr>
+    <tr><th>Şu anki kapı</th><td>{{ entry.current_gate|default:"—" }}</td></tr>
+    <tr><th>Disposition</th><td>{{ entry.get_disposition_status_display }}</td></tr>
+  </table>
+
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">CAPA / MOC / Etkinlik</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:220px">CAPA ID / Durum</th><td>{{ entry.capa_id|default:"—" }} · {{ entry.capa_status|default:"—" }}</td></tr>
+    <tr><th>MOC ID</th><td>{{ entry.moc_id|default:"—" }}</td></tr>
+    <tr><th>Etkinlik değerlendirme</th><td>{{ entry.effectiveness_due|date:"d.m.Y"|default:"—" }} · {{ entry.get_effectiveness_result_display }}</td></tr>
+    <tr><th>Tekrar kodu</th><td>{{ entry.recurrence_code|default:"—" }}</td></tr>
+    <tr><th>Hedef / Kapanma</th><td>{{ entry.target_close|date:"d.m.Y"|default:"—" }} → {{ entry.close_date|date:"d.m.Y"|default:"—" }}</td></tr>
+  </table>
+
+  {% if entry.related_records or entry.evidence_link %}
+  <h3 style="font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Bağlı kayıtlar</h3>
+  <table class="data" style="margin-bottom:20px">
+    <tr><th style="width:220px">Bağlı kayıtlar</th><td><code style="font-size:12px">{{ entry.related_records|default:"—" }}</code></td></tr>
+    <tr><th>Kanıt linkleri</th><td><code style="font-size:12px">{{ entry.evidence_link|default:"—" }}</code></td></tr>
+  </table>
+  {% endif %}
+</div>
+
+{% if chain_count > 1 %}
+<div class="panel">
+  <h3 style="margin-top:0">📚 Snapshot zinciri ({{ chain_count }} versiyon · append-only)</h3>
+  <table class="data">
+    <thead><tr>
+      <th>#</th><th>Kayıt zamanı</th><th>Durum</th><th>Disposition</th>
+      <th>Effectiveness</th><th>Snapshot mı?</th>
+    </tr></thead>
+    <tbody>
+    {% for c in chain %}
+      <tr {% if not c.is_snapshot %}style="background:#f0fdf4"{% endif %}>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ c.created_at|date:"d.m.Y H:i" }}</td>
+        <td>{{ c.get_status_display }}</td>
+        <td>{{ c.get_disposition_status_display }}</td>
+        <td>{{ c.effectiveness_result }}</td>
+        <td>{% if c.is_snapshot %}📦 SNAPSHOT{% else %}✅ AKTİF{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

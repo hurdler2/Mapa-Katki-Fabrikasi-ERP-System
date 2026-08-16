@@ -1,0 +1,120 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Master Register (Integrated) · {{ kpi_open }} açık{% endblock %}
+{% block content %}
+
+<div class="kpi-grid" style="margin-bottom:14px">
+  <div class="kpi warning">
+    <div class="label">Açık olay</div>
+    <div class="value">{{ kpi_open }}</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">HOLD</div>
+    <div class="value">{{ kpi_hold }}</div>
+  </div>
+  <div class="kpi success">
+    <div class="label">Kapalı</div>
+    <div class="value">{{ kpi_closed }}</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Tekrar (R≠0)</div>
+    <div class="value">{{ kpi_repeat }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div style="margin-bottom:14px;color:var(--text-muted);font-size:13px">
+    <strong>Integrated Event/CAPA Master Register (Faz G)</strong> —
+    08_CLO_1 sheet 6 örneğine göre NCR + IT-OT + HSE + CAPA + effectiveness tek satırda.
+    Değişiklik yapıldığında snapshot alınır, satır silinmez (append-only).
+  </div>
+
+  <form method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Arama</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="event_id, site, kapsam..."
+             style="padding:8px;border:1px solid var(--border);border-radius:6px;min-width:260px">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Aile</label>
+      <select name="family" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code, label in families %}
+          <option value="{{ code }}" {% if family == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Durum</label>
+      <select name="status" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code, label in statuses %}
+          <option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">HOLD?</label>
+      <select name="hold" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">Fark etmez</option>
+        <option value="1" {% if hold == "1" %}selected{% endif %}>Sadece HOLD'lar</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Filtrele</button>
+    <a href="{% url 'portal:master_integrated_list' %}" style="align-self:center">Temizle</a>
+  </form>
+</div>
+
+<div class="panel">
+  <table class="data">
+    <thead><tr>
+      <th>Event ID</th><th>Aile</th><th>EV</th><th>D</th>
+      <th>Site/Proses</th><th>Durum</th><th>HOLD</th>
+      <th>Etkinlik</th><th>Sahip</th><th>Tespit</th><th>Hedef</th>
+    </tr></thead>
+    <tbody>
+    {% for e in page.object_list %}
+      <tr {% if e.hold_flag %}style="background:#fee2e2"{% endif %}>
+        <td><a href="{% url 'portal:master_integrated_detail' e.event_id %}"><strong>{{ e.event_id }}</strong></a></td>
+        <td><span class="badge muted">{{ e.family }}</span></td>
+        <td><span class="badge info">{{ e.ev_class }}</span></td>
+        <td><span class="badge muted">{{ e.d_level }}</span></td>
+        <td>{{ e.site_process|truncatechars:32 }}</td>
+        <td>
+          <span class="badge
+            {% if e.status == 'CLOSED' %}success
+            {% elif e.status == 'REOPENED' %}danger
+            {% elif e.status == 'OPEN' %}warning
+            {% else %}info{% endif %}">{{ e.get_status_display }}</span>
+        </td>
+        <td style="text-align:center">{% if e.hold_flag %}🔴{% else %}—{% endif %}</td>
+        <td>
+          <span class="badge
+            {% if e.effectiveness_result == 'EFFECTIVE' %}success
+            {% elif e.effectiveness_result == 'INEFFECTIVE' %}danger
+            {% elif e.effectiveness_result == 'PARTIALLY' %}warning
+            {% else %}muted{% endif %}">{{ e.effectiveness_result }}</span>
+        </td>
+        <td>{{ e.owner.username }}</td>
+        <td>{{ e.detection_date|date:"d.m.Y" }}</td>
+        <td>{{ e.target_close|date:"d.m.Y"|default:"—" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:30px">Kayıt yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page.has_other_pages %}
+    <div style="margin-top:16px;text-align:center;font-size:13px">
+      {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}&q={{ q }}&family={{ family }}&status={{ status }}&hold={{ hold }}">← Önceki</a>
+      {% endif %}
+      Sayfa {{ page.number }} / {{ page.paginator.num_pages }}
+      {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}&q={{ q }}&family={{ family }}&status={{ status }}&hold={{ hold }}">Sonraki →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

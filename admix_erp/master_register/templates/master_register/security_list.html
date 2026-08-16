@@ -1,0 +1,120 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}Security Event Register · {{ kpi_open }} açık{% endblock %}
+{% block content %}
+
+<div class="kpi-grid" style="margin-bottom:14px">
+  <div class="kpi warning">
+    <div class="label">Açık olay</div>
+    <div class="value">{{ kpi_open }}</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">SEV1 (Critical)</div>
+    <div class="value">{{ kpi_sev1 }}</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">SLA Breach</div>
+    <div class="value">{{ kpi_breach }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div style="margin-bottom:14px;color:var(--text-muted);font-size:13px">
+    <strong>IT/OT Security Event Register (Faz G)</strong> —
+    07_CLO_1 sheet 6 örneğine göre güvenlik olayları + KVKK/DPO + eskalasyon takibi.
+  </div>
+
+  <form method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Arama</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="incident_id, asset, kapsam..."
+             style="padding:8px;border:1px solid var(--border);border-radius:6px;min-width:260px">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Şiddet</label>
+      <select name="severity" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code, label in severities %}
+          <option value="{{ code }}" {% if severity == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Durum</label>
+      <select name="status" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code, label in statuses %}
+          <option value="{{ code }}" {% if current_status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);display:block;text-transform:uppercase">Eskalasyon</label>
+      <select name="escalation" style="padding:8px;border:1px solid var(--border);border-radius:6px">
+        <option value="">— Tümü —</option>
+        {% for code, label in escalations %}
+          <option value="{{ code }}" {% if escalation == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Filtrele</button>
+    <a href="{% url 'portal:master_security_list' %}" style="align-self:center">Temizle</a>
+  </form>
+</div>
+
+<div class="panel">
+  <table class="data">
+    <thead><tr>
+      <th>Incident ID</th><th>SEV</th><th>Asset</th><th>Kişisel veri?</th>
+      <th>Containment</th><th>Durum</th><th>Eskalasyon</th>
+      <th>Sahip</th><th>Tespit</th><th>Açık gün</th>
+    </tr></thead>
+    <tbody>
+    {% for e in page.object_list %}
+      <tr {% if e.escalation_status == 'BREACH' %}style="background:#fee2e2"{% endif %}>
+        <td><strong>{{ e.incident_id }}</strong></td>
+        <td>
+          <span class="badge
+            {% if e.severity == 'SEV1' %}danger
+            {% elif e.severity == 'SEV2' %}warning
+            {% else %}info{% endif %}">{{ e.severity }}</span>
+        </td>
+        <td>{{ e.affected_asset|truncatechars:36 }}</td>
+        <td style="text-align:center">{% if e.is_personal_data %}✓ KVKK{% else %}—{% endif %}</td>
+        <td>{{ e.get_containment_status_display }}</td>
+        <td>
+          <span class="badge
+            {% if e.current_status == 'CLOSED' %}success
+            {% elif e.current_status == 'OPEN' %}warning
+            {% else %}info{% endif %}">{{ e.get_current_status_display }}</span>
+        </td>
+        <td>
+          <span class="badge
+            {% if e.escalation_status == 'BREACH' %}danger
+            {% elif e.escalation_status == 'ESCALATED' %}warning
+            {% elif e.escalation_status == 'WARNING' %}info
+            {% else %}muted{% endif %}">{{ e.escalation_status }}</span>
+        </td>
+        <td>{{ e.owner.username }}</td>
+        <td>{{ e.detection_datetime|date:"d.m.Y H:i" }}</td>
+        <td style="text-align:center">{{ e.days_open }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:30px">Kayıt yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page.has_other_pages %}
+    <div style="margin-top:16px;text-align:center;font-size:13px">
+      {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}&q={{ q }}&severity={{ severity }}&status={{ current_status }}&escalation={{ escalation }}">← Önceki</a>
+      {% endif %}
+      Sayfa {{ page.number }} / {{ page.paginator.num_pages }}
+      {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}&q={{ q }}&severity={{ severity }}&status={{ current_status }}&escalation={{ escalation }}">Sonraki →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -44,6 +44,9 @@ ROLE_MATRIX: dict[str, dict[str, tuple[str, ...]]] = {
         "masterdata": READ, "formulation": READ,
         "registry": READ,  # MCOS kod register (okuma)
         "records": READ,   # MCOS case/record/decision (okuma)
+        "gates": READ,     # MCOS gate (okuma)
+        "master_register": READ,  # MCOS Master Register (üst yönetim panosu)
+        "rules": READ,            # MCOS kural ihlalleri (üst yönetim gözler)
         "analytics": READ, "notifications": READ_WRITE,
     },
 
@@ -57,6 +60,7 @@ ROLE_MATRIX: dict[str, dict[str, tuple[str, ...]]] = {
         "mrp": READ_WRITE, "scada": FULL,
         "registry": READ,  # MCOS kod register (okuma)
         "records": READ_WRITE,   # TM olayları takip eder + kayıt oluşturur
+        "gates": READ_WRITE,     # TM gate mekaniği
         "reporting": READ, "notifications": READ_WRITE,
     },
 
@@ -80,6 +84,9 @@ ROLE_MATRIX: dict[str, dict[str, tuple[str, ...]]] = {
         "masterdata": READ, "hr": READ,
         "registry": FULL,  # MCOS Faz C — kontrollü kod register sahibi
         "records": FULL,   # MCOS Faz D — case/record/decision sahibi
+        "gates": FULL,     # MCOS Faz E — 8-Part Gate sahibi
+        "master_register": FULL,  # MCOS Faz G — Master Register sahibi
+        "rules": FULL,            # MCOS Faz H — Rule ihlalleri (QA çözer)
         "notifications": READ_WRITE,
     },
 

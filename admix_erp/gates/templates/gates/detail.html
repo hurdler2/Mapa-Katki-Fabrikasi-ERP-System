@@ -1,0 +1,104 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}{{ gate.gate_id }} — 8-Part Gate{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:14px">
+  <a href="{% url 'portal:gate_list' %}">← Gate listesine dön</a> ·
+  <a href="{% url 'portal:case_detail' gate.case.case_id %}">Case: {{ gate.case.case_id }}</a>
+</div>
+
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px">
+    <div>
+      <h2 style="margin:0">{{ gate.gate_id }}</h2>
+      <div style="color:var(--text-muted);margin-top:4px">
+        Sahip: <strong>{{ gate.owner.username }}</strong> ·
+        Açılış: {{ gate.opened_at|date:"d.m.Y H:i" }}
+        {% if gate.business_line %}· <span class="badge muted">{{ gate.business_line.code }}</span>{% endif %}
+      </div>
+      <p style="margin-top:12px;color:var(--text-muted)">{{ gate.scope }}</p>
+    </div>
+    <span class="badge
+      {% if gate.status == 'PASS' %}success
+      {% elif gate.status == 'CONDITIONAL' %}warning
+      {% elif gate.status == 'FAIL' %}danger
+      {% elif gate.status == 'REOPENED' %}info
+      {% elif gate.status == 'HOLD' %}danger
+      {% elif gate.status == 'IN_PROGRESS' %}info
+      {% else %}muted{% endif %}" style="font-size:14px;padding:8px 16px">
+      {{ gate.get_status_display }}
+    </span>
+  </div>
+
+  {% if gate.closed_at %}
+  <table class="data" style="margin-bottom:16px">
+    <tr><th style="width:200px">Kapanış zamanı</th><td>{{ gate.closed_at|date:"d.m.Y H:i" }}</td></tr>
+    <tr><th>Kapatan</th><td>{{ gate.closed_by.username|default:"—" }}</td></tr>
+  </table>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">8 Bölüm (NAV-001 §4)</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+    {% for gs in sections %}
+    <div style="border:2px solid
+      {% if gs.completion_status == 'PASS' %}#16a34a
+      {% elif gs.completion_status == 'CONDITIONAL' %}#eab308
+      {% elif gs.completion_status == 'FAIL' or gs.completion_status == 'HOLD' %}#dc2626
+      {% elif gs.completion_status == 'IN_PROGRESS' %}#0ea5e9
+      {% else %}#cbd5e1{% endif %};
+      border-radius:8px;padding:14px;background:#fff">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong style="font-size:14px">{{ gs.get_section_display }}</strong>
+        <span class="badge
+          {% if gs.completion_status == 'PASS' %}success
+          {% elif gs.completion_status == 'CONDITIONAL' %}warning
+          {% elif gs.completion_status == 'FAIL' or gs.completion_status == 'HOLD' %}danger
+          {% elif gs.completion_status == 'IN_PROGRESS' %}info
+          {% else %}muted{% endif %}">{{ gs.completion_status }}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">
+        {% if gs.reviewer %}
+          İnceleyen: {{ gs.reviewer.username }}
+          {% if gs.reviewed_at %}· {{ gs.reviewed_at|date:"d.m.Y H:i" }}{% endif %}
+        {% else %}
+          Henüz incelenmedi
+        {% endif %}
+      </div>
+      <div style="font-size:12px">
+        Kanıt: <strong>{{ gs.evidence.count }}</strong> parça
+      </div>
+      {% if gs.notes %}
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;border-top:1px dashed #e2e8f0;padding-top:8px">
+          {{ gs.notes|linebreaks|truncatewords_html:20 }}
+        </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if gate.reopen_history %}
+<div class="panel">
+  <h3 style="margin-top:0">🔄 Yeniden açma geçmişi</h3>
+  <table class="data">
+    <thead><tr>
+      <th>Zaman</th><th>Kim</th><th>Önceki durum</th><th>Tetik</th><th>Not</th>
+    </tr></thead>
+    <tbody>
+    {% for entry in gate.reopen_history %}
+      <tr>
+        <td>{{ entry.at }}</td>
+        <td>{{ entry.by_user }}</td>
+        <td><span class="badge muted">{{ entry.prev_status }}</span></td>
+        <td>{{ entry.trigger }}</td>
+        <td>{{ entry.note }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

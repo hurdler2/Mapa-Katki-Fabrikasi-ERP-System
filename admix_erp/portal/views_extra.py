@@ -56,6 +56,57 @@ def decision_detail_view(request: HttpRequest, decision_id: str) -> HttpResponse
     return decision_detail(request, decision_id)
 
 
+# Gates portal wrapper'ları — Faz E UI (8-Part Gate)
+@login_required
+def gate_list_view(request: HttpRequest) -> HttpResponse:
+    from gates.views import gate_list
+    return gate_list(request)
+
+
+@login_required
+def gate_detail_view(request: HttpRequest, gate_id: str) -> HttpResponse:
+    from gates.views import gate_detail
+    return gate_detail(request, gate_id)
+
+
+# Master Register portal wrapper'ları — Faz G UI
+@login_required
+def master_integrated_list_view(request: HttpRequest) -> HttpResponse:
+    from master_register.views import integrated_list
+    return integrated_list(request)
+
+
+@login_required
+def master_integrated_detail_view(request: HttpRequest, event_id: str) -> HttpResponse:
+    from master_register.views import integrated_detail
+    return integrated_detail(request, event_id)
+
+
+@login_required
+def master_security_list_view(request: HttpRequest) -> HttpResponse:
+    from master_register.views import security_list
+    return security_list(request)
+
+
+# Rules portal wrapper'ları — Faz H UI
+@login_required
+def violation_list_view(request: HttpRequest) -> HttpResponse:
+    from rules.views import violation_list
+    return violation_list(request)
+
+
+@login_required
+def rules_catalog_view(request: HttpRequest) -> HttpResponse:
+    from rules.views import rules_catalog
+    return rules_catalog(request)
+
+
+@login_required
+def violation_resolve_view(request: HttpRequest, pk: int) -> HttpResponse:
+    from rules.views import violation_resolve
+    return violation_resolve(request, pk)
+
+
 @login_required
 @require_POST
 def switch_business_line(request: HttpRequest) -> HttpResponse:

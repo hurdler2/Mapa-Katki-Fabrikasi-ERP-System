@@ -4,7 +4,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView, TokenRefreshView, TokenVerifyView,
 )
 
-from . import views
+from . import retrieval, views
 
 
 router = DefaultRouter()
@@ -32,6 +32,8 @@ urlpatterns = [
     path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/verify/", TokenVerifyView.as_view(), name="token_verify"),
+    # MCOS Faz F — Retrieval endpoint (00_MCO_1 sinav kriteri: <2 dk)
+    path("retrieve/", retrieval.retrieve, name="mcos_retrieve"),
     path("", include(router.urls)),
     path("auth/session/", include("rest_framework.urls")),
 ]

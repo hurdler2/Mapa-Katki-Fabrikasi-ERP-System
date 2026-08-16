@@ -24,6 +24,25 @@ urlpatterns = [
     path("records/<str:record_id>/", views_extra.record_detail_view, name="record_detail"),
     path("decisions/<str:decision_id>/", views_extra.decision_detail_view, name="decision_detail"),
 
+    # MCOS Faz E — 8-Part Gate Model
+    path("gates/", views_extra.gate_list_view, name="gate_list"),
+    path("gates/<str:gate_id>/", views_extra.gate_detail_view, name="gate_detail"),
+
+    # MCOS Faz G — Master Register (integrated + security)
+    path("master/integrated/", views_extra.master_integrated_list_view,
+         name="master_integrated_list"),
+    path("master/integrated/<str:event_id>/",
+         views_extra.master_integrated_detail_view,
+         name="master_integrated_detail"),
+    path("master/security/", views_extra.master_security_list_view,
+         name="master_security_list"),
+
+    # MCOS Faz H — Non-Negotiable Rules Enforcer
+    path("kurallar/", views_extra.violation_list_view, name="violation_list"),
+    path("kurallar/katalog/", views_extra.rules_catalog_view, name="rules_catalog"),
+    path("kurallar/<int:pk>/resolve/", views_extra.violation_resolve_view,
+         name="violation_resolve"),
+
     # Muhasebe
     path("muhasebe/", views.accounting_dashboard, name="accounting"),
     path("muhasebe/faturalar/", views.accounting_invoices, name="accounting_invoices"),

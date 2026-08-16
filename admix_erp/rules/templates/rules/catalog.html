@@ -1,0 +1,33 @@
+{% extends "portal/_base.html" %}
+{% block topbar %}12 Non-Negotiable Rule Kataloğu{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <div style="margin-bottom:14px;color:var(--text-muted);font-size:13px">
+    <strong>CDD-001 §16 — 12 Mutlak Kural</strong>. Her kural bir Django signal olarak
+    çalışır ve ihlal denemesini <a href="{% url 'portal:violation_list' %}">RuleViolation</a>
+    tablosuna kaydeder. Blocked=True kurallar (R01-R11) kayıt oluşumunu engeller;
+    R12 log-only'dır (kayıt geçer ama GM'ye bildirim gider).
+  </div>
+
+  <table class="data">
+    <thead><tr>
+      <th style="width:60px">#</th>
+      <th>Kural</th>
+      <th style="width:120px;text-align:center">İhlal sayısı</th>
+    </tr></thead>
+    <tbody>
+    {% for n, title, count in rules %}
+      <tr>
+        <td><strong>R{{ n|stringformat:"02d" }}</strong></td>
+        <td>{{ title }}</td>
+        <td style="text-align:center">
+          <span class="badge {% if count %}warning{% else %}muted{% endif %}">{{ count }}</span>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
