@@ -577,6 +577,21 @@ class Payment(TimeStamped):
         help_text="check_status = BOUNCED olduğunda banka gerekçesi.",
     )
 
+    # ---- Havale/EFT için özel alanlar (method=BANK_TRANSFER iken) ----
+    transfer_bank = models.CharField(
+        "Havale bankası", max_length=12, blank=True,
+        choices=AlgerianBank.choices,
+        help_text="Havalenin geldiği/gittiği banka.",
+    )
+    transfer_iban = models.CharField(
+        "IBAN / Hesap no", max_length=40, blank=True,
+        help_text="Karşı tarafın IBAN'ı veya hesap numarası.",
+    )
+    transfer_date = models.DateField(
+        "Havale efektif tarihi", null=True, blank=True,
+        help_text="Havalenin bankalar arası valörü.",
+    )
+
     # Genel ek (havale dekontu, LC belgesi vs.)
     attachment = models.FileField(
         "Ödeme belgesi (PDF/JPG)",

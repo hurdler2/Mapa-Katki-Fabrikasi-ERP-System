@@ -110,6 +110,13 @@ def payment_new(request: HttpRequest) -> HttpResponse:
                 if request.FILES.get("check_image"):
                     payment.check_image = request.FILES["check_image"]
 
+            # Havale/EFT özel alanları
+            if method == Payment.Method.BANK_TRANSFER:
+                payment.transfer_bank = data.get("transfer_bank", "")
+                payment.transfer_iban = data.get("transfer_iban", "")
+                if data.get("transfer_date"):
+                    payment.transfer_date = dt.date.fromisoformat(data["transfer_date"])
+
             # Genel ek
             if request.FILES.get("attachment"):
                 payment.attachment = request.FILES["attachment"]

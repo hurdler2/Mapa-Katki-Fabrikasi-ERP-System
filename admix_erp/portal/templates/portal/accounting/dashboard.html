@@ -1,137 +1,362 @@
 {% extends "portal/_base.html" %}
 {% block title %}Muhasebe Ana Ekran · ADMIX-ERP{% endblock %}
-{% block topbar %}Muhasebe Ana Ekran{% endblock %}
-{% block sidebar %}{% include "portal/accounting/_sidebar.html" %}{% endblock %}
+{% block topbar %}Muhasebe Panosu{% endblock %}
 
 {% block topbar_extra %}
-<a href="{% url 'portal:accounting_invoice_new' %}" class="btn btn-primary">+ Yeni Fatura</a>
+<a href="{% url 'portal:accounting_invoice_new' %}" class="btn btn-primary" style="font-size:13px">+ Yeni Fatura</a>
+<a href="/accounting/payments/new/" class="btn btn-outline" style="font-size:13px">+ Ödeme Ekle</a>
+{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  .chart-panel { background:#fff; border:1px solid var(--border); border-radius:10px; padding:20px 22px; box-shadow:0 1px 2px rgba(16,24,40,0.04); margin-bottom:20px; }
+  .chart-panel h3 { margin:0 0 4px; font-size:14px; font-weight:600; color:var(--text); }
+  .chart-panel .subtitle { font-size:12px; color:var(--text-muted); margin-bottom:14px; }
+  .chart-panel canvas { max-height:280px !important; }
+  .grid-2 { display:grid; grid-template-columns:1.7fr 1fr; gap:16px; margin-bottom:20px; }
+  .grid-2-eq { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+  @media (max-width:900px){ .grid-2, .grid-2-eq { grid-template-columns:1fr; } }
+</style>
 {% endblock %}
 
 {% block content %}
 
+<!-- SATIR 1: Bu ay KPI'lari -->
 <div class="kpi-grid">
   <div class="kpi success">
     <div class="label">Bu Ay Satış (TTC)</div>
-    <div class="value">{{ sales_this_month|floatformat:2 }} DZD</div>
+    <div class="value">{{ sales_this_month|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
+    <div class="sub">YTD: {{ sales_ytd|floatformat:0 }} DZD</div>
   </div>
   <div class="kpi warning">
     <div class="label">Bu Ay Alım (TTC)</div>
-    <div class="value">{{ purchases_this_month|floatformat:2 }} DZD</div>
+    <div class="value">{{ purchases_this_month|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
+    <div class="sub">YTD: {{ purchases_ytd|floatformat:0 }} DZD</div>
   </div>
   <div class="kpi {% if net_result >= 0 %}success{% else %}danger{% endif %}">
     <div class="label">Bu Ay Net</div>
-    <div class="value">{{ net_result|floatformat:2 }} DZD</div>
+    <div class="value">{{ net_result|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
+    <div class="sub">Marj (YTD): <strong>{{ margin_pct }}%</strong></div>
   </div>
   <div class="kpi info">
     <div class="label">Net TVA (Bu Ay)</div>
-    <div class="value">{{ tva_net|floatformat:2 }} DZD</div>
-    <div class="sub">Tahsil: {{ tva_collected|floatformat:2 }} · İndirim: {{ tva_deductible|floatformat:2 }}</div>
+    <div class="value">{{ tva_net|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
+    <div class="sub">Tahsil {{ tva_collected|floatformat:0 }} · İndirim {{ tva_deductible|floatformat:0 }}</div>
   </div>
+</div>
+
+<!-- SATIR 2: Alacak / Borç KPI'lari -->
+<div class="kpi-grid">
   <div class="kpi warning">
     <div class="label">Açık Alacak (AR)</div>
-    <div class="value">{{ open_ar|floatformat:2 }} DZD</div>
+    <div class="value">{{ open_ar|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
+    <div class="sub">Müşterilerden tahsil edilecek</div>
   </div>
   <div class="kpi danger">
     <div class="label">Açık Borç (AP)</div>
-    <div class="value">{{ open_ap|floatformat:2 }} DZD</div>
+    <div class="value">{{ open_ap|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
+    <div class="sub">Tedarikçilere ödenecek</div>
+  </div>
+  <div class="kpi {% if open_ar >= open_ap %}success{% else %}danger{% endif %}">
+    <div class="label">Net İşletme Sermayesi</div>
+    <div class="value">{{ open_ar|floatformat:0 }} - {{ open_ap|floatformat:0 }}</div>
+    <div class="sub">AR - AP (yaklaşık)</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Kar Marjı (YTD)</div>
+    <div class="value">{{ margin_pct }}%</div>
+    <div class="sub">Satış - Alım / Satış</div>
   </div>
 </div>
 
-<div class="panel-grid-2">
-  <div class="panel">
-    <h2>📈 Aylık Trend (Son 6 Ay)</h2>
+<!-- SATIR 3: 12-aylık gelir/gider trendi + ödeme yöntemi dağılımı -->
+<div class="grid-2">
+  <div class="chart-panel">
+    <h3>📈 12-Aylık Gelir · Gider · Net Trendi</h3>
+    <p class="subtitle">Aylık Satış (TTC), Satın Alma (TTC) ve Net Sonuç</p>
     <canvas id="trendChart"></canvas>
   </div>
-  <div class="panel">
-    <h2>👥 En Çok Satış Yapılan Müşteriler (Bu Yıl)</h2>
-    <canvas id="customerChart"></canvas>
+  <div class="chart-panel">
+    <h3>💳 Ödeme Yöntemi Dağılımı (YTD)</h3>
+    <p class="subtitle">Yıl başından itibaren toplam tutara göre</p>
+    <canvas id="paymentPieChart"></canvas>
   </div>
 </div>
 
-<div class="panel-grid-2">
-  <div class="panel">
-    <h2>📊 Fatura Durum Dağılımı</h2>
-    <canvas id="statusChart"></canvas>
+<!-- SATIR 4: Alacak yaslanması + TVA trendi -->
+<div class="grid-2-eq">
+  <div class="chart-panel">
+    <h3>⏰ Alacak Yaşlanması (Aging)</h3>
+    <p class="subtitle">Vade tarihine göre açık AR dağılımı</p>
+    <canvas id="agingChart"></canvas>
   </div>
+  <div class="chart-panel">
+    <h3>🧾 TVA 6-Aylık Trendi</h3>
+    <p class="subtitle">Tahsil edilen · İndirilebilir · Net TVA</p>
+    <canvas id="tvaTrendChart"></canvas>
+  </div>
+</div>
 
+<!-- SATIR 5: Vadesi yaklaşan çekler + vadesi geçmiş faturalar -->
+<div class="grid-2-eq">
   <div class="panel">
-    <h2>🧾 Son Faturalar
-      <a href="{% url 'portal:accounting_invoices' %}" class="cta">Tümü →</a>
-    </h2>
-    <table class="data">
-      <thead><tr>
-        <th>Fatura No</th><th>Cari</th><th>Tarih</th>
-        <th class="num">TTC</th><th>Durum</th>
-      </tr></thead>
-      <tbody>
-      {% for inv in recent_invoices %}
+    <h2>📅 Vadesi Yaklaşan Çekler (30 gün)</h2>
+    {% if upcoming_checks %}
+      <table class="data">
+        <thead><tr><th>Vade</th><th>Çek No</th><th>Banka</th><th class="num">Tutar</th><th>Durum</th></tr></thead>
+        <tbody>
+        {% for p in upcoming_checks %}
         <tr>
-          <td><a href="{% url 'portal:accounting_invoice_detail' inv.pk %}">{{ inv.invoice_number }}</a></td>
-          <td>{{ inv.customer|default:inv.supplier }}</td>
-          <td>{{ inv.date|date:'d.m.Y' }}</td>
-          <td class="num">{{ inv.total_ttc|floatformat:2 }}</td>
+          <td style="font-family:monospace;font-size:12px">{{ p.check_due_date|date:'d.m.Y' }}</td>
+          <td><strong>{{ p.check_number }}</strong></td>
+          <td style="font-size:12px">{{ p.check_bank }}</td>
+          <td class="num"><strong>{{ p.amount|floatformat:0 }}</strong></td>
           <td>
-            <span class="badge
-              {% if inv.status == 'PAID' %}success
-              {% elif inv.status == 'PARTIALLY_PAID' %}warning
-              {% elif inv.status == 'POSTED' %}info
-              {% elif inv.status == 'CANCELLED' %}danger
-              {% else %}muted{% endif %}">
-              {{ inv.get_status_display }}
+            <span class="badge {% if p.check_status == 'DEPOSITED' %}warning{% else %}info{% endif %}">
+              {{ p.get_check_status_display }}
             </span>
           </td>
         </tr>
-      {% empty %}
-        <tr><td colspan="5" style="color:var(--text-muted);text-align:center">Fatura yok.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div style="padding:24px;text-align:center;color:var(--text-muted);background:#F9FAFB;border-radius:8px">
+        Önümüzdeki 30 gün için vadeli çek yok. 🎉
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>🚨 Vadesi Geçmiş Faturalar (Top 10)</h2>
+    {% if overdue_invoices %}
+      <table class="data">
+        <thead><tr><th>Fatura</th><th>Müşteri</th><th class="num">Gün</th><th class="num">Kalan</th></tr></thead>
+        <tbody>
+        {% for o in overdue_invoices %}
+        <tr>
+          <td><a href="/portal/muhasebe/faturalar/{{ o.pk }}/">{{ o.invoice_number }}</a></td>
+          <td style="font-size:12px">{{ o.customer|truncatechars:24 }}</td>
+          <td class="num">
+            <span class="badge {% if o.days_overdue > 60 %}danger{% elif o.days_overdue > 30 %}warning{% else %}info{% endif %}">
+              {{ o.days_overdue }} gün
+            </span>
+          </td>
+          <td class="num"><strong>{{ o.amount_due|floatformat:0 }}</strong></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div style="padding:24px;text-align:center;color:var(--text-muted);background:#F9FAFB;border-radius:8px">
+        Vadesi geçmiş fatura yok. 🎉
+      </div>
+    {% endif %}
   </div>
 </div>
 
-{% endblock %}
+<!-- SATIR 6: En çok satış yapılan müşteriler + fatura durumu -->
+<div class="grid-2-eq">
+  <div class="chart-panel">
+    <h3>🏆 En Çok Satış Yapılan 5 Müşteri (YTD)</h3>
+    <p class="subtitle">Yıl başından beri toplam ciroya göre</p>
+    <canvas id="topCustomersChart"></canvas>
+  </div>
+  <div class="chart-panel">
+    <h3>📊 Fatura Durum Dağılımı</h3>
+    <p class="subtitle">Tüm zaman fatura sayısına göre</p>
+    <canvas id="statusDistChart"></canvas>
+  </div>
+</div>
 
-{% block extra_body %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- SATIR 7: Son faturalar -->
+<div class="panel">
+  <h2>🕐 Son Fatura Hareketleri
+    <a href="{% url 'portal:accounting_invoices' %}" class="cta">Tümünü Gör →</a>
+  </h2>
+  <table class="data">
+    <thead><tr>
+      <th>No</th><th>Tarih</th><th>Tip</th><th>Cari</th>
+      <th class="num">TTC</th><th>Durum</th>
+    </tr></thead>
+    <tbody>
+    {% for inv in recent_invoices %}
+    <tr>
+      <td><a href="/portal/muhasebe/faturalar/{{ inv.pk }}/"><strong>{{ inv.invoice_number }}</strong></a></td>
+      <td>{{ inv.date|date:'d.m.Y' }}</td>
+      <td>
+        <span class="badge {% if 'SALES' in inv.type %}success{% else %}warning{% endif %}">
+          {{ inv.get_type_display|truncatechars:16 }}
+        </span>
+      </td>
+      <td>
+        {% if inv.customer %}{{ inv.customer.name|truncatechars:32 }}
+        {% elif inv.supplier %}{{ inv.supplier.name|truncatechars:32 }}
+        {% else %}—{% endif %}
+      </td>
+      <td class="num">{{ inv.total_ttc|floatformat:2 }}</td>
+      <td>
+        <span class="badge
+          {% if inv.status == 'PAID' %}success
+          {% elif inv.status == 'PARTIALLY_PAID' %}warning
+          {% elif inv.status == 'POSTED' %}info
+          {% elif inv.status == 'CANCELLED' %}danger
+          {% else %}muted{% endif %}">{{ inv.get_status_display }}</span>
+      </td>
+    </tr>
+    {% empty %}
+      <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">Fatura yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
 <script>
-const trend = {{ trend_json|safe }};
-new Chart(document.getElementById('trendChart'), {
-  type: 'line',
-  data: {
-    labels: trend.map(d => d.month),
-    datasets: [
-      {label: 'Satış', data: trend.map(d => d.sales), borderColor:'#16a34a', backgroundColor:'#dcfce7', tension: 0.3, fill: true},
-      {label: 'Alım', data: trend.map(d => d.purchases), borderColor:'#dc2626', backgroundColor:'#fee2e2', tension: 0.3, fill: true},
-    ],
-  },
-  options: { plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}} }
-});
+// Chart.js global tema — sistem font, muted axis
+Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#667085';
+Chart.defaults.plugins.legend.labels.padding = 12;
 
-const cust = {{ top_customers_json|safe }};
-new Chart(document.getElementById('customerChart'), {
+const trend = {{ trend_json|safe }};
+const paymentMethods = {{ payment_methods_json|safe }};
+const aging = {{ aging_json|safe }};
+const tvaTrend = {{ tva_trend_json|safe }};
+const topCustomers = {{ top_customers_json|safe }};
+const statusDist = {{ status_dist_json|safe }};
+
+// Palet
+const C = {
+  primary: '#1D4ED8', primaryLight: 'rgba(29, 78, 216, 0.10)',
+  success: '#16A34A', successLight: 'rgba(22, 163, 74, 0.10)',
+  danger:  '#D92D20', dangerLight:  'rgba(217, 45, 32, 0.10)',
+  warning: '#DC6803', warningLight: 'rgba(220, 104, 3, 0.10)',
+  info:    '#0284C7', infoLight:    'rgba(2, 132, 199, 0.10)',
+  slate:   '#64748B', slateLight:   'rgba(100, 116, 139, 0.10)',
+};
+const pie6 = ['#1D4ED8', '#16A34A', '#DC6803', '#D92D20', '#0284C7', '#7C3AED'];
+
+// 1. Trend (12 ay) — çift çizgi + net barlar (mixed)
+new Chart(document.getElementById('trendChart'), {
   type: 'bar',
   data: {
-    labels: cust.map(c => c['customer__name']),
-    datasets: [{
-      label: 'Toplam Satış (DZD)',
-      data: cust.map(c => parseFloat(c.total || 0)),
-      backgroundColor: '#1e3a8a',
-    }],
+    labels: trend.map(x => x.month),
+    datasets: [
+      { type: 'line', label: 'Satış (TTC)', data: trend.map(x => x.sales), borderColor: C.success, backgroundColor: C.successLight, borderWidth: 2, tension: 0.35, fill: true, pointRadius: 3 },
+      { type: 'line', label: 'Alım (TTC)', data: trend.map(x => x.purchases), borderColor: C.warning, backgroundColor: C.warningLight, borderWidth: 2, tension: 0.35, fill: true, pointRadius: 3 },
+      { type: 'bar',  label: 'Net Sonuç', data: trend.map(x => x.net), backgroundColor: trend.map(x => x.net >= 0 ? C.primaryLight : C.dangerLight), borderColor: trend.map(x => x.net >= 0 ? C.primary : C.danger), borderWidth: 1.5, borderRadius: 4, order: 2 },
+    ],
   },
-  options: { indexAxis: 'y', plugins:{legend:{display:false}} }
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, usePointStyle: false, padding: 14 } },
+      tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('fr-DZ')} DZD` } },
+    },
+    scales: {
+      y: { grid: { color: '#F0F0F0' }, ticks: { callback: (v) => (v/1000).toLocaleString() + 'K' } },
+      x: { grid: { display: false } },
+    },
+  },
 });
 
-const status = {{ status_dist_json|safe }};
-new Chart(document.getElementById('statusChart'), {
+// 2. Ödeme yöntemi pie
+new Chart(document.getElementById('paymentPieChart'), {
   type: 'doughnut',
   data: {
-    labels: status.map(s => s.status),
+    labels: paymentMethods.length ? paymentMethods.map(x => x.label) : ['Veri yok'],
     datasets: [{
-      data: status.map(s => s.n),
-      backgroundColor: ['#94a3b8', '#0284c7', '#ea580c', '#16a34a', '#dc2626'],
+      data: paymentMethods.length ? paymentMethods.map(x => x.total) : [1],
+      backgroundColor: paymentMethods.length ? pie6.slice(0, paymentMethods.length) : ['#E5E7EB'],
+      borderWidth: 2, borderColor: '#fff',
     }],
   },
-  options: { plugins:{legend:{position:'right'}} }
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10 } },
+      tooltip: { callbacks: { label: (ctx) => paymentMethods.length ? `${ctx.label}: ${ctx.parsed.toLocaleString('fr-DZ')} DZD` : 'Ödeme kaydı yok' } },
+    },
+    cutout: '55%',
+  },
+});
+
+// 3. Alacak yaşlanması bar
+new Chart(document.getElementById('agingChart'), {
+  type: 'bar',
+  data: {
+    labels: ['0-30 gün', '31-60 gün', '61-90 gün', '90+ gün'],
+    datasets: [{
+      label: 'Açık AR (DZD)',
+      data: [aging['0-30'], aging['31-60'], aging['61-90'], aging['90+']],
+      backgroundColor: [C.success, C.info, C.warning, C.danger],
+      borderRadius: 6, borderSkipped: false,
+    }],
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y.toLocaleString('fr-DZ')} DZD` } } },
+    scales: { y: { grid: { color: '#F0F0F0' }, ticks: { callback: (v) => (v/1000).toLocaleString() + 'K' } }, x: { grid: { display: false } } },
+  },
+});
+
+// 4. TVA trend
+new Chart(document.getElementById('tvaTrendChart'), {
+  type: 'line',
+  data: {
+    labels: tvaTrend.map(x => x.month),
+    datasets: [
+      { label: 'TVA Tahsil', data: tvaTrend.map(x => x.collected), borderColor: C.success, backgroundColor: 'transparent', borderWidth: 2, tension: 0.3 },
+      { label: 'TVA İndirilebilir', data: tvaTrend.map(x => x.deductible), borderColor: C.warning, backgroundColor: 'transparent', borderWidth: 2, tension: 0.3 },
+      { label: 'Net (Öd/İade)', data: tvaTrend.map(x => x.net), borderColor: C.primary, backgroundColor: C.primaryLight, borderWidth: 2.5, tension: 0.3, fill: true },
+    ],
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom' } },
+    scales: { y: { grid: { color: '#F0F0F0' }, ticks: { callback: (v) => (v/1000).toLocaleString() + 'K' } }, x: { grid: { display: false } } },
+  },
+});
+
+// 5. Top müşteriler horizontal bar
+new Chart(document.getElementById('topCustomersChart'), {
+  type: 'bar',
+  data: {
+    labels: topCustomers.length ? topCustomers.map(x => (x.customer__name || '—').substring(0, 24)) : ['Veri yok'],
+    datasets: [{
+      label: 'Toplam Satış (TTC)',
+      data: topCustomers.length ? topCustomers.map(x => x.total) : [1],
+      backgroundColor: C.primaryLight,
+      borderColor: C.primary,
+      borderWidth: 1.5, borderRadius: 4, borderSkipped: false,
+    }],
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.x.toLocaleString('fr-DZ')} DZD` } } },
+    scales: { x: { grid: { color: '#F0F0F0' }, ticks: { callback: (v) => (v/1000).toLocaleString() + 'K' } }, y: { grid: { display: false } } },
+  },
+});
+
+// 6. Fatura durum pie
+new Chart(document.getElementById('statusDistChart'), {
+  type: 'pie',
+  data: {
+    labels: statusDist.length ? statusDist.map(x => x.label) : ['Veri yok'],
+    datasets: [{
+      data: statusDist.length ? statusDist.map(x => x.count) : [1],
+      backgroundColor: statusDist.length ? pie6.slice(0, statusDist.length) : ['#E5E7EB'],
+      borderWidth: 2, borderColor: '#fff',
+    }],
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 8 } } },
+  },
 });
 </script>
+
 {% endblock %}

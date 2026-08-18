@@ -98,11 +98,45 @@
       </div>
     </div>
 
-    <!-- Havale / diğer için referans -->
+    <!-- Havale / EFT özel paneli -->
+    <div id="transferBox" style="display:none;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:16px 18px;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <span style="font-size:18px">🏦</span>
+        <strong style="color:var(--text)">Havale / EFT Bilgileri</strong>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="field">
+          <label>Karşı Taraf Bankası *</label>
+          <select name="transfer_bank">
+            <option value="">— Seçiniz —</option>
+            {% for code, label in banks %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Havale Efektif Tarihi *</label>
+          <input type="date" name="transfer_date" value="{{ today }}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>IBAN / Hesap No</label>
+        <input type="text" name="transfer_iban" placeholder="AL... veya DZ..."
+               style="font-family:monospace">
+      </div>
+
+      <div class="field">
+        <label>Dekont No / İşlem Referansı *</label>
+        <input type="text" name="reference" placeholder="Banka dekont numarası"
+               style="font-family:monospace">
+      </div>
+    </div>
+
+    <!-- Nakit / kart / LC için referans -->
     <div id="refBox" style="margin-top:12px">
       <div class="field">
-        <label>Referans (dekont / işlem no)</label>
-        <input type="text" name="reference" placeholder="Havale dekont no, LC referansı, vs.">
+        <label>Referans (işlem no)</label>
+        <input type="text" name="reference_generic" placeholder="Nakit fişi, kart slip, LC referansı, vs.">
       </div>
     </div>
 
@@ -131,16 +165,24 @@
 
 <script>
 const methodSel = document.getElementById('methodSelect');
-const checkBox = document.getElementById('checkBox');
-const refBox   = document.getElementById('refBox');
+const checkBox    = document.getElementById('checkBox');
+const transferBox = document.getElementById('transferBox');
+const refBox      = document.getElementById('refBox');
 function togglePaymentMethod() {
-  const isCheck = methodSel.value === 'CHECK';
-  checkBox.style.display = isCheck ? '' : 'none';
-  refBox.style.display   = isCheck ? 'none' : '';
-  // Cek alanlarini required yap/kaldir
+  const v = methodSel.value;
+  const isCheck    = v === 'CHECK';
+  const isTransfer = v === 'BANK_TRANSFER';
+  checkBox.style.display    = isCheck ? '' : 'none';
+  transferBox.style.display = isTransfer ? '' : 'none';
+  refBox.style.display      = (isCheck || isTransfer) ? 'none' : '';
+  // Alanları required yap/kaldır
   ['check_number','check_bank','check_issue_date'].forEach(function(name) {
     const el = document.querySelector('[name="' + name + '"]');
     if (el) el.required = isCheck;
+  });
+  ['transfer_bank','transfer_date','reference'].forEach(function(name) {
+    const el = document.querySelector('[name="' + name + '"]');
+    if (el) el.required = isTransfer;
   });
 }
 methodSel.addEventListener('change', togglePaymentMethod);

@@ -105,14 +105,25 @@ def accounting_dashboard(request: HttpRequest) -> HttpResponse:
     month_start = today.replace(day=1)
     year_start = today.replace(month=1, day=1)
 
-    # KPI'lar (bu ay)
+    # ---- KPI'lar (bu ay) ----
     month_invoices = Invoice.objects.filter(date__gte=month_start)
     sales_this_month = month_invoices.filter(
-        type__in=[Invoice.Type.SALES]
+        type=Invoice.Type.SALES
     ).aggregate(t=Sum("total_ttc"))["t"] or Decimal("0")
     purchases_this_month = month_invoices.filter(
-        type__in=[Invoice.Type.PURCHASE]
+        type=Invoice.Type.PURCHASE
     ).aggregate(t=Sum("total_ttc"))["t"] or Decimal("0")
+
+    # Yıllık toplamlar (kar marjı için)
+    sales_ytd = Invoice.objects.filter(
+        type=Invoice.Type.SALES, date__gte=year_start
+    ).aggregate(t=Sum("total_ttc"))["t"] or Decimal("0")
+    purchases_ytd = Invoice.objects.filter(
+        type=Invoice.Type.PURCHASE, date__gte=year_start
+    ).aggregate(t=Sum("total_ttc"))["t"] or Decimal("0")
+    margin_pct = 0
+    if sales_ytd > 0:
+        margin_pct = float(((sales_ytd - purchases_ytd) / sales_ytd) * 100)
 
     tva_collected = month_invoices.filter(
         type=Invoice.Type.SALES,
@@ -125,23 +136,21 @@ def accounting_dashboard(request: HttpRequest) -> HttpResponse:
                     Invoice.Status.PARTIALLY_PAID],
     ).aggregate(t=Sum("total_tva"))["t"] or Decimal("0")
 
-    open_ar = Invoice.objects.filter(
+    # Açık alacak/borç (net)
+    ar_invs = Invoice.objects.filter(
         type=Invoice.Type.SALES,
         status__in=[Invoice.Status.POSTED, Invoice.Status.PARTIALLY_PAID],
-    ).aggregate(
-        due=Sum("total_ttc") - Sum("amount_paid")
-    )["due"] or Decimal("0")
-
-    open_ap = Invoice.objects.filter(
+    )
+    open_ar = sum((i.amount_due for i in ar_invs), Decimal("0"))
+    ap_invs = Invoice.objects.filter(
         type=Invoice.Type.PURCHASE,
         status__in=[Invoice.Status.POSTED, Invoice.Status.PARTIALLY_PAID],
-    ).aggregate(
-        due=Sum("total_ttc") - Sum("amount_paid")
-    )["due"] or Decimal("0")
+    )
+    open_ap = sum((i.amount_due for i in ap_invs), Decimal("0"))
 
-    # Aylık trend (son 6 ay)
+    # ---- Aylık trend (son 12 ay, satış vs alım) ----
     trend = []
-    for i in range(5, -1, -1):
+    for i in range(11, -1, -1):
         y, m = today.year, today.month - i
         while m <= 0:
             m += 12; y -= 1
@@ -157,9 +166,64 @@ def accounting_dashboard(request: HttpRequest) -> HttpResponse:
             "month": f"{y}-{m:02d}",
             "sales": float(sale),
             "purchases": float(buy),
+            "net": float(sale - buy),
         })
 
-    # Top 5 müşteri (yıllık)
+    # ---- Ödeme yöntemi dağılımı (yıllık) ----
+    payment_methods = list(
+        Payment.objects.filter(date__gte=year_start)
+        .values("method")
+        .annotate(total=Sum("amount"), n=Count("id"))
+        .order_by("-total")
+    )
+    method_labels = dict(Payment.Method.choices)
+    payment_methods_chart = [{
+        "label": method_labels.get(m["method"], m["method"]),
+        "total": float(m["total"] or 0),
+        "count": m["n"],
+    } for m in payment_methods]
+
+    # ---- Alacak yaşlanması (aging bucket) ----
+    ar_open = list(Invoice.objects.filter(
+        type=Invoice.Type.SALES,
+        status__in=[Invoice.Status.POSTED, Invoice.Status.PARTIALLY_PAID],
+    ).select_related("customer"))
+    aging = {"0-30": 0.0, "31-60": 0.0, "61-90": 0.0, "90+": 0.0}
+    for inv in ar_open:
+        due = inv.due_date or inv.date
+        days = (today - due).days
+        amt = float(inv.amount_due)
+        if days < 31:   aging["0-30"] += amt
+        elif days < 61: aging["31-60"] += amt
+        elif days < 91: aging["61-90"] += amt
+        else:           aging["90+"] += amt
+
+    # ---- Vadesi geçmiş faturalar (top 10) ----
+    overdue = []
+    for inv in ar_open:
+        due = inv.due_date or inv.date
+        if due < today:
+            overdue.append({
+                "invoice_number": inv.invoice_number,
+                "pk": inv.pk,
+                "customer": inv.customer.name if inv.customer else "—",
+                "due": due,
+                "days_overdue": (today - due).days,
+                "amount_due": inv.amount_due,
+            })
+    overdue.sort(key=lambda x: -x["days_overdue"])
+    overdue = overdue[:10]
+
+    # ---- Vadesi yaklaşan çekler (30 gün içinde) ----
+    upcoming_checks = list(Payment.objects.filter(
+        method=Payment.Method.CHECK,
+        check_status__in=[Payment.CheckStatus.ISSUED, Payment.CheckStatus.DEPOSITED],
+        check_due_date__isnull=False,
+        check_due_date__gte=today,
+        check_due_date__lte=today + dt.timedelta(days=30),
+    ).order_by("check_due_date")[:10])
+
+    # ---- Top 5 müşteri (yıllık) ----
     top_customers = list(
         Invoice.objects.filter(
             type=Invoice.Type.SALES, date__gte=year_start,
@@ -170,27 +234,64 @@ def accounting_dashboard(request: HttpRequest) -> HttpResponse:
         .order_by("-total")[:5]
     )
 
-    # Fatura durum dağılımı
+    # ---- TVA aylık trend (son 6 ay) ----
+    tva_trend = []
+    for i in range(5, -1, -1):
+        y, m = today.year, today.month - i
+        while m <= 0:
+            m += 12; y -= 1
+        ms = dt.date(y, m, 1)
+        me = (dt.date(y + (m // 12), (m % 12) + 1, 1) - dt.timedelta(days=1))
+        col = Invoice.objects.filter(
+            type=Invoice.Type.SALES, date__gte=ms, date__lte=me,
+            status__in=[Invoice.Status.POSTED, Invoice.Status.PAID, Invoice.Status.PARTIALLY_PAID],
+        ).aggregate(t=Sum("total_tva"))["t"] or Decimal("0")
+        ded = Invoice.objects.filter(
+            type=Invoice.Type.PURCHASE, date__gte=ms, date__lte=me,
+            status__in=[Invoice.Status.POSTED, Invoice.Status.PAID, Invoice.Status.PARTIALLY_PAID],
+        ).aggregate(t=Sum("total_tva"))["t"] or Decimal("0")
+        tva_trend.append({
+            "month": f"{y}-{m:02d}",
+            "collected": float(col),
+            "deductible": float(ded),
+            "net": float(col - ded),
+        })
+
+    # ---- Fatura durum dağılımı ----
     status_dist = list(
         Invoice.objects.values("status").annotate(n=Count("id")).order_by()
     )
+    status_labels = dict(Invoice.Status.choices)
+    status_dist_chart = [{
+        "label": status_labels.get(s["status"], s["status"]),
+        "count": s["n"],
+    } for s in status_dist]
 
-    # Son 15 fatura
+    # ---- Son 15 fatura ----
     recent = Invoice.objects.select_related("customer", "supplier").order_by("-date", "-id")[:15]
 
     ctx = {
         "current": "home",
+        "today": today,
         "sales_this_month": sales_this_month,
         "purchases_this_month": purchases_this_month,
         "net_result": sales_this_month - purchases_this_month,
+        "sales_ytd": sales_ytd,
+        "purchases_ytd": purchases_ytd,
+        "margin_pct": round(margin_pct, 1),
         "tva_collected": tva_collected,
         "tva_deductible": tva_deductible,
         "tva_net": tva_collected - tva_deductible,
         "open_ar": open_ar,
         "open_ap": open_ap,
         "trend_json": json.dumps(trend),
+        "payment_methods_json": json.dumps(payment_methods_chart),
+        "aging_json": json.dumps(aging),
+        "tva_trend_json": json.dumps(tva_trend),
+        "status_dist_json": json.dumps(status_dist_chart),
         "top_customers_json": json.dumps(top_customers, default=str),
-        "status_dist_json": json.dumps(status_dist, default=str),
+        "overdue_invoices": overdue,
+        "upcoming_checks": upcoming_checks,
         "recent_invoices": recent,
         **_notif_ctx(request.user),
     }
