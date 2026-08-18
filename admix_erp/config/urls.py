@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import user_passes_test
@@ -44,3 +46,7 @@ urlpatterns = [
     path("api/v1/", include("api.urls")),
     path("analytics/", include("analytics.urls")),
 ]
+
+# Yuklenen dosyalari (attachment, cek imajlari, evidence) dev'de servis et.
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

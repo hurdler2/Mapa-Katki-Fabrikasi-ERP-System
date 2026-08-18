@@ -251,6 +251,8 @@ def accounting_invoice_new(request: HttpRequest) -> HttpResponse:
                 type=inv_type, date=date, period=period,
                 due_date=(dt.date.fromisoformat(data["due_date"]) if data.get("due_date") else None),
                 notes=data.get("notes", ""),
+                attachment=request.FILES.get("attachment"),
+                attachment_note=data.get("attachment_note", ""),
                 **partner_kwargs,
             )
             # Satırlar (basit: tek satır)
@@ -313,6 +315,14 @@ def accounting_invoice_detail(request: HttpRequest, pk: int) -> HttpResponse:
             elif action == "post_directly" and request.user.is_superuser:
                 post_invoice(inv, user=request.user)
                 messages.success(request, f"Fatura {inv.invoice_number} muhasebeleştirildi.")
+            elif action == "upload_attachment":
+                f = request.FILES.get("attachment")
+                if f:
+                    inv.attachment = f
+                    inv.save(update_fields=["attachment", "updated_at"])
+                    messages.success(request, "Fatura eki yüklendi.")
+                else:
+                    messages.error(request, "Dosya seçilmedi.")
         except Exception as e:
             messages.error(request, f"İşlem başarısız: {e}")
         return redirect("portal:accounting_invoice_detail", pk=pk)

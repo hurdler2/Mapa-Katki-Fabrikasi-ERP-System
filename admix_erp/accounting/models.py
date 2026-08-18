@@ -384,6 +384,16 @@ class Invoice(TimeStamped):
         JournalEntry, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="source_invoice", verbose_name="Yevmiye fişi",
     )
+    # Fatura eki — orijinal fatura PDF / taranmış görsel / e-fatura dosyası
+    attachment = models.FileField(
+        "Fatura eki (PDF/JPG/PNG)",
+        upload_to="invoices/%Y/%m/", null=True, blank=True,
+        help_text="Orijinal fatura belgesi (PDF veya tarama). Maks 10 MB.",
+    )
+    attachment_note = models.CharField(
+        "Ek açıklaması", max_length=200, blank=True,
+        help_text="Örn. 'Tedarikçi orijinali', 'DGI tebliğ dosyası'",
+    )
     notes = models.TextField("Notlar", blank=True)
 
     history = HistoricalRecords()
@@ -399,6 +409,10 @@ class Invoice(TimeStamped):
     @property
     def amount_due(self) -> Decimal:
         return (self.total_ttc or ZERO) - (self.amount_paid or ZERO)
+
+    @property
+    def has_attachment(self) -> bool:
+        return bool(self.attachment)
 
 
 class InvoiceLine(TimeStamped):
@@ -457,18 +471,47 @@ class InvoiceLine(TimeStamped):
 # ---------------------------------------------------------------------------
 
 class Payment(TimeStamped):
-    """Fatura tahsilat/tediye ödemesi."""
+    """Fatura tahsilat/tediye ödemesi.
+
+    Cezayir'de çek (chèque) B2B tediye/tahsilatta yaygın; post-dated çek
+    de sık kullanılır. `method=CHECK` seçildiğinde ek alanlar (banka,
+    çek no, keşide/vade, durum, görsel) doldurulur.
+    """
 
     class Direction(models.TextChoices):
         INCOMING = "INCOMING", "Tahsilat (müşteriden)"
         OUTGOING = "OUTGOING", "Tediye (tedarikçiye)"
 
     class Method(models.TextChoices):
-        BANK_TRANSFER = "BANK_TRANSFER", "Havale / EFT"
-        CHECK = "CHECK", "Çek"
-        CASH = "CASH", "Nakit"
-        LC = "LC", "Akreditif"
-        CARD = "CARD", "Kart"
+        BANK_TRANSFER = "BANK_TRANSFER", "Havale / EFT (Virement)"
+        CHECK = "CHECK", "Çek (Chèque)"
+        CASH = "CASH", "Nakit (Espèces)"
+        LC = "LC", "Akreditif (Crédoc)"
+        CARD = "CARD", "Kart (Carte CIB)"
+
+    class AlgerianBank(models.TextChoices):
+        """Cezayir bankaları — çek/havalede en yaygın olanlar."""
+        BEA = "BEA", "BEA (Banque Extérieure d'Algérie)"
+        BNA = "BNA", "BNA (Banque Nationale d'Algérie)"
+        CPA = "CPA", "CPA (Crédit Populaire d'Algérie)"
+        BADR = "BADR", "BADR (Banque de l'Agriculture)"
+        BDL = "BDL", "BDL (Banque de Développement Local)"
+        CNEP = "CNEP", "CNEP-Banque"
+        AGB = "AGB", "AGB (Gulf Bank Algeria)"
+        SGA = "SGA", "SGA (Société Générale Algérie)"
+        BNP = "BNP", "BNP Paribas El Djazaïr"
+        FRB = "FRB", "Fransabank El Djazaïr"
+        TRUST = "TRUST", "Trust Bank Algeria"
+        HOUSING = "HOUSING", "Housing Bank"
+        OTHER = "OTHER", "Diğer / Other"
+
+    class CheckStatus(models.TextChoices):
+        """Çek durumu — çek yaşam döngüsü (Cezayir bankacılık pratiği)."""
+        ISSUED = "ISSUED", "Kesildi (Émis)"
+        DEPOSITED = "DEPOSITED", "Bankaya yatırıldı (Déposé)"
+        CLEARED = "CLEARED", "Tahsil edildi (Encaissé)"
+        BOUNCED = "BOUNCED", "Karşılıksız (Impayé)"
+        CANCELLED = "CANCELLED", "İptal (Annulé)"
 
     payment_number = models.CharField("Ödeme no", max_length=40, unique=True)
     date = models.DateField("Tarih")
@@ -497,15 +540,88 @@ class Payment(TimeStamped):
         JournalEntry, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="source_payment", verbose_name="Yevmiye fişi",
     )
+
+    # ---- Cezayir çeki için özel alanlar (method=CHECK iken) ----
+    check_number = models.CharField(
+        "Çek no", max_length=40, blank=True,
+        help_text="Çek üzerindeki sıra numarası",
+    )
+    check_bank = models.CharField(
+        "Çek bankası", max_length=12, blank=True,
+        choices=AlgerianBank.choices,
+    )
+    check_bank_branch = models.CharField(
+        "Şube", max_length=100, blank=True,
+    )
+    check_issue_date = models.DateField(
+        "Keşide tarihi", null=True, blank=True,
+    )
+    check_due_date = models.DateField(
+        "Vade tarihi", null=True, blank=True,
+        help_text="Post-dated (ileri tarihli) çek için doldurulur.",
+    )
+    check_status = models.CharField(
+        "Çek durumu", max_length=12, blank=True,
+        choices=CheckStatus.choices,
+    )
+    check_drawer_name = models.CharField(
+        "Çeki keşide eden", max_length=200, blank=True,
+        help_text="Çek üzerindeki keşideci adı (kişi veya şirket).",
+    )
+    check_image = models.FileField(
+        "Çek görseli (fotoğraf/tarama)",
+        upload_to="checks/%Y/%m/", null=True, blank=True,
+    )
+    check_bounce_reason = models.CharField(
+        "Karşılıksız gerekçesi", max_length=200, blank=True,
+        help_text="check_status = BOUNCED olduğunda banka gerekçesi.",
+    )
+
+    # Genel ek (havale dekontu, LC belgesi vs.)
+    attachment = models.FileField(
+        "Ödeme belgesi (PDF/JPG)",
+        upload_to="payments/%Y/%m/", null=True, blank=True,
+        help_text="Havale dekontu, LC belgesi veya diğer ödeme evrakı.",
+    )
     notes = models.TextField("Notlar", blank=True)
 
     class Meta:
         verbose_name = "Ödeme"
         verbose_name_plural = "Ödemeler"
         ordering = ["-date"]
+        indexes = [
+            models.Index(fields=["method", "check_status"]),
+            models.Index(fields=["check_due_date"]),
+        ]
 
     def __str__(self) -> str:
         return f"{self.payment_number} · {self.amount} {self.currency}"
+
+    @property
+    def is_check(self) -> bool:
+        return self.method == self.Method.CHECK
+
+    @property
+    def is_post_dated_check(self) -> bool:
+        """İleri tarihli çek mi? (keşide sonrası vadeli)"""
+        if not self.is_check or not self.check_due_date or not self.check_issue_date:
+            return False
+        return self.check_due_date > self.check_issue_date
+
+    def clean(self):
+        """method=CHECK ise çek alanları zorunlu; değilse doldurulmaz."""
+        from django.core.exceptions import ValidationError
+        if self.method == self.Method.CHECK:
+            required = {
+                "check_number": self.check_number,
+                "check_bank": self.check_bank,
+                "check_issue_date": self.check_issue_date,
+            }
+            missing = [k for k, v in required.items() if not v]
+            if missing:
+                raise ValidationError({
+                    m: "Çek ile ödemede zorunlu alan." for m in missing
+                })
 
 
 # ---------------------------------------------------------------------------

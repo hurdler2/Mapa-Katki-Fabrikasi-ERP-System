@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="panel" style="max-width:800px">
-  <form method="post" class="stack" id="invForm">
+  <form method="post" class="stack" id="invForm" enctype="multipart/form-data">
     {% csrf_token %}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -72,6 +72,20 @@
         <select name="tva_rate" required>
           {% for t in tva_rates %}<option value="{{ t.code }}" {% if t.code == 'TVA19' %}selected{% endif %}>{{ t.name }} ({{ t.rate_pct }}%)</option>{% endfor %}
         </select>
+      </div>
+    </div>
+
+    <h3 style="margin-top:24px;color:var(--text-muted);font-size:13px;text-transform:uppercase;letter-spacing:0.06em">Fatura Eki (opsiyonel)</h3>
+
+    <div style="display:grid;grid-template-columns:2fr 3fr;gap:16px">
+      <div class="field">
+        <label>Fatura belgesi (PDF/JPG/PNG)</label>
+        <input type="file" name="attachment" accept=".pdf,.jpg,.jpeg,.png"
+               style="padding:8px 10px;background:#FAFBFC;border:1px dashed var(--border-strong);border-radius:6px">
+      </div>
+      <div class="field">
+        <label>Ek açıklaması</label>
+        <input type="text" name="attachment_note" placeholder="Ör. Tedarikçi orijinali · DGI tebliğ dosyası">
       </div>
     </div>
 
