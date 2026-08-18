@@ -1,4 +1,5 @@
 {% extends "portal/_base.html" %}
+{% load formats %}
 {% block title %}Fatura {{ inv.invoice_number }}{% endblock %}
 {% block topbar %}Fatura · {{ inv.invoice_number }}{% endblock %}
 {% block sidebar %}{% include "portal/accounting/_sidebar.html" %}{% endblock %}
@@ -53,20 +54,20 @@
         <td>{{ line.description }}</td>
         <td class="num">{{ line.quantity }}</td>
         <td class="num">{{ line.unit_price }}</td>
-        <td class="num">{{ line.ht_amount|floatformat:2 }}</td>
-        <td class="num">{{ line.tva_amount|floatformat:2 }} ({{ line.tva_rate.rate_pct }}%)</td>
-        <td class="num"><strong>{{ line.ttc_amount|floatformat:2 }}</strong></td>
+        <td class="num">{{ line.ht_amount|fr_number }}</td>
+        <td class="num">{{ line.tva_amount|fr_number }} ({{ line.tva_rate.rate_pct }}%)</td>
+        <td class="num"><strong>{{ line.ttc_amount|fr_number }}</strong></td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
 
   <div style="max-width:400px;margin-left:auto">
-    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Toplam HT (KDVsiz):</span><strong>{{ inv.total_ht|floatformat:2 }} DZD</strong></div>
-    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Toplam TVA:</span><strong>{{ inv.total_tva|floatformat:2 }} DZD</strong></div>
-    <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);font-size:16px"><span>Toplam TTC (KDV dahil):</span><strong style="color:var(--primary)">{{ inv.total_ttc|floatformat:2 }} DZD</strong></div>
-    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Ödenen:</span><strong>{{ inv.amount_paid|floatformat:2 }} DZD</strong></div>
-    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Kalan:</span><strong style="color:var(--danger)">{{ inv.amount_due|floatformat:2 }} DZD</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Toplam HT (KDVsiz):</span><strong>{{ inv.total_ht|dzd }}</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Toplam TVA:</span><strong>{{ inv.total_tva|dzd }}</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);font-size:16px"><span>Toplam TTC (KDV dahil):</span><strong style="color:var(--primary)">{{ inv.total_ttc|dzd }}</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Ödenen:</span><strong>{{ inv.amount_paid|dzd }}</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Kalan:</span><strong style="color:var(--danger)">{{ inv.amount_due|dzd }}</strong></div>
   </div>
 
   {% if inv.notes %}
@@ -159,7 +160,7 @@
             {{ p.reference|default:"—" }}
           {% endif %}
         </td>
-        <td class="num"><strong>{{ p.amount|floatformat:2 }} {{ p.currency }}</strong></td>
+        <td class="num"><strong>{{ p.amount|fr_number }} {{ p.currency }}</strong></td>
         <td>
           {% if p.is_check %}
             <span class="badge {% if p.check_status == 'CLEARED' %}success{% elif p.check_status == 'BOUNCED' %}danger{% elif p.check_status == 'DEPOSITED' %}warning{% else %}info{% endif %}">

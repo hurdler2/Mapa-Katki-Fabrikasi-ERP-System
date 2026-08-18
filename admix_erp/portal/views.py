@@ -284,6 +284,7 @@ def accounting_dashboard(request: HttpRequest) -> HttpResponse:
         "tva_net": tva_collected - tva_deductible,
         "open_ar": open_ar,
         "open_ap": open_ap,
+        "working_capital": open_ar - open_ap,
         "trend_json": json.dumps(trend),
         "payment_methods_json": json.dumps(payment_methods_chart),
         "aging_json": json.dumps(aging),

@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.humanize",
     # 3rd party
     "simple_history",
     "rest_framework",
@@ -184,6 +185,13 @@ LANGUAGE_CODE = "tr"
 TIME_ZONE = "Europe/Istanbul"
 USE_I18N = True
 USE_TZ = True
+
+# Cezayir/Fransız stili sayı formatı: 1.234.567,89 DZD (nokta binlik, virgül ondalık).
+# USE_L10N Django 5+ deprecated; USE_THOUSAND_SEPARATOR ile override ediyoruz.
+USE_THOUSAND_SEPARATOR = True
+NUMBER_GROUPING = 3
+THOUSAND_SEPARATOR = "."
+DECIMAL_SEPARATOR = ","
 
 # Desteklenen diller (kullanıcı profiline göre değiştirilebilir).
 LANGUAGES = [

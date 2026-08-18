@@ -1,4 +1,5 @@
 {% extends "portal/_base.html" %}
+{% load formats %}
 {% block title %}Muhasebe Ana Ekran · ADMIX-ERP{% endblock %}
 {% block topbar %}Muhasebe Panosu{% endblock %}
 
@@ -26,23 +27,23 @@
 <div class="kpi-grid">
   <div class="kpi success">
     <div class="label">Bu Ay Satış (TTC)</div>
-    <div class="value">{{ sales_this_month|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
-    <div class="sub">YTD: {{ sales_ytd|floatformat:0 }} DZD</div>
+    <div class="value">{{ sales_this_month|dzd0 }}</div>
+    <div class="sub">YTD: {{ sales_ytd|dzd0 }}</div>
   </div>
   <div class="kpi warning">
     <div class="label">Bu Ay Alım (TTC)</div>
-    <div class="value">{{ purchases_this_month|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
-    <div class="sub">YTD: {{ purchases_ytd|floatformat:0 }} DZD</div>
+    <div class="value">{{ purchases_this_month|dzd0 }}</div>
+    <div class="sub">YTD: {{ purchases_ytd|dzd0 }}</div>
   </div>
   <div class="kpi {% if net_result >= 0 %}success{% else %}danger{% endif %}">
     <div class="label">Bu Ay Net</div>
-    <div class="value">{{ net_result|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
-    <div class="sub">Marj (YTD): <strong>{{ margin_pct }}%</strong></div>
+    <div class="value">{{ net_result|dzd0 }}</div>
+    <div class="sub">Marj (YTD): <strong>{{ margin_pct|pct }}</strong></div>
   </div>
   <div class="kpi info">
     <div class="label">Net TVA (Bu Ay)</div>
-    <div class="value">{{ tva_net|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
-    <div class="sub">Tahsil {{ tva_collected|floatformat:0 }} · İndirim {{ tva_deductible|floatformat:0 }}</div>
+    <div class="value">{{ tva_net|dzd0 }}</div>
+    <div class="sub">Tahsil {{ tva_collected|fr_short }} · İndirim {{ tva_deductible|fr_short }}</div>
   </div>
 </div>
 
@@ -50,23 +51,23 @@
 <div class="kpi-grid">
   <div class="kpi warning">
     <div class="label">Açık Alacak (AR)</div>
-    <div class="value">{{ open_ar|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
+    <div class="value">{{ open_ar|dzd0 }}</div>
     <div class="sub">Müşterilerden tahsil edilecek</div>
   </div>
   <div class="kpi danger">
     <div class="label">Açık Borç (AP)</div>
-    <div class="value">{{ open_ap|floatformat:0 }} <span style="font-size:14px;color:var(--text-muted);font-weight:500">DZD</span></div>
+    <div class="value">{{ open_ap|dzd0 }}</div>
     <div class="sub">Tedarikçilere ödenecek</div>
   </div>
   <div class="kpi {% if open_ar >= open_ap %}success{% else %}danger{% endif %}">
     <div class="label">Net İşletme Sermayesi</div>
-    <div class="value">{{ open_ar|floatformat:0 }} - {{ open_ap|floatformat:0 }}</div>
-    <div class="sub">AR - AP (yaklaşık)</div>
+    <div class="value">{{ working_capital|dzd0 }}</div>
+    <div class="sub">AR − AP</div>
   </div>
   <div class="kpi info">
     <div class="label">Kar Marjı (YTD)</div>
-    <div class="value">{{ margin_pct }}%</div>
-    <div class="sub">Satış - Alım / Satış</div>
+    <div class="value">{{ margin_pct|pct }}</div>
+    <div class="sub">(Satış − Alım) / Satış</div>
   </div>
 </div>
 
@@ -111,7 +112,7 @@
           <td style="font-family:monospace;font-size:12px">{{ p.check_due_date|date:'d.m.Y' }}</td>
           <td><strong>{{ p.check_number }}</strong></td>
           <td style="font-size:12px">{{ p.check_bank }}</td>
-          <td class="num"><strong>{{ p.amount|floatformat:0 }}</strong></td>
+          <td class="num"><strong>{{ p.amount|dzd0 }}</strong></td>
           <td>
             <span class="badge {% if p.check_status == 'DEPOSITED' %}warning{% else %}info{% endif %}">
               {{ p.get_check_status_display }}
@@ -143,7 +144,7 @@
               {{ o.days_overdue }} gün
             </span>
           </td>
-          <td class="num"><strong>{{ o.amount_due|floatformat:0 }}</strong></td>
+          <td class="num"><strong>{{ o.amount_due|dzd0 }}</strong></td>
         </tr>
         {% endfor %}
         </tbody>
@@ -195,7 +196,7 @@
         {% elif inv.supplier %}{{ inv.supplier.name|truncatechars:32 }}
         {% else %}—{% endif %}
       </td>
-      <td class="num">{{ inv.total_ttc|floatformat:2 }}</td>
+      <td class="num">{{ inv.total_ttc|dzd }}</td>
       <td>
         <span class="badge
           {% if inv.status == 'PAID' %}success
@@ -213,11 +214,14 @@
 </div>
 
 <script>
-// Chart.js global tema — sistem font, muted axis
+// Chart.js global tema — sistem font, muted axis, Cezayir/Fransız sayı format
 Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
 Chart.defaults.font.size = 12;
 Chart.defaults.color = '#667085';
 Chart.defaults.plugins.legend.labels.padding = 12;
+// Locale helper: 1.234.567,89 (de-DE Chrome/Edge/Firefox'ta = nokta binlik + virgül ondalık)
+function fmtDZD(n) { return n.toLocaleString('de-DE', {maximumFractionDigits: 0}); }
+function fmtDZD2(n) { return n.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 
 const trend = {{ trend_json|safe }};
 const paymentMethods = {{ payment_methods_json|safe }};
@@ -253,7 +257,7 @@ new Chart(document.getElementById('trendChart'), {
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, usePointStyle: false, padding: 14 } },
-      tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('fr-DZ')} DZD` } },
+      tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('de-DE')} DZD` } },
     },
     scales: {
       y: { grid: { color: '#F0F0F0' }, ticks: { callback: (v) => (v/1000).toLocaleString() + 'K' } },
@@ -277,7 +281,7 @@ new Chart(document.getElementById('paymentPieChart'), {
     responsive: true, maintainAspectRatio: false,
     plugins: {
       legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10 } },
-      tooltip: { callbacks: { label: (ctx) => paymentMethods.length ? `${ctx.label}: ${ctx.parsed.toLocaleString('fr-DZ')} DZD` : 'Ödeme kaydı yok' } },
+      tooltip: { callbacks: { label: (ctx) => paymentMethods.length ? `${ctx.label}: ${ctx.parsed.toLocaleString('de-DE')} DZD` : 'Ödeme kaydı yok' } },
     },
     cutout: '55%',
   },
@@ -297,7 +301,7 @@ new Chart(document.getElementById('agingChart'), {
   },
   options: {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y.toLocaleString('fr-DZ')} DZD` } } },
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y.toLocaleString('de-DE')} DZD` } } },
     scales: { y: { grid: { color: '#F0F0F0' }, ticks: { callback: (v) => (v/1000).toLocaleString() + 'K' } }, x: { grid: { display: false } } },
   },
 });
@@ -336,7 +340,7 @@ new Chart(document.getElementById('topCustomersChart'), {
   options: {
     indexAxis: 'y',
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.x.toLocaleString('fr-DZ')} DZD` } } },
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.x.toLocaleString('de-DE')} DZD` } } },
     scales: { x: { grid: { color: '#F0F0F0' }, ticks: { callback: (v) => (v/1000).toLocaleString() + 'K' } }, y: { grid: { display: false } } },
   },
 });
