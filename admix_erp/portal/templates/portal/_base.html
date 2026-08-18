@@ -248,5 +248,50 @@
 </main>
 
 {% block extra_body %}{% endblock %}
+
+<script>
+// Sidebar scroll pozisyonu — sayfa gecisleri arasinda korumak icin.
+// 1) Link tiklandiginda mevcut scrollTop sessionStorage'a yazilir.
+// 2) Sayfa yuklendiginde geri yuklenir.
+// 3) Bulunamazsa aktif menu item'a scroll edilir (ilk giris fallback).
+(function () {
+  var STORAGE_KEY = "admix_sidebar_scroll";
+  var aside = document.querySelector("aside");
+  if (!aside) return;
+
+  // 1) Restore on load
+  try {
+    var saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved !== null) {
+      aside.scrollTop = parseInt(saved, 10) || 0;
+    } else {
+      // Fallback: aktif item'i gorunur yap
+      var active = aside.querySelector("a.menu-item.active");
+      if (active) {
+        var rect = active.getBoundingClientRect();
+        var asideRect = aside.getBoundingClientRect();
+        if (rect.top < asideRect.top || rect.bottom > asideRect.bottom) {
+          active.scrollIntoView({ block: "center" });
+        }
+      }
+    }
+  } catch (e) { /* sessionStorage devre disi olabilir */ }
+
+  // 2) Save on menu link click
+  aside.addEventListener("click", function (e) {
+    var link = e.target.closest("a");
+    if (link && aside.contains(link)) {
+      try { sessionStorage.setItem(STORAGE_KEY, String(aside.scrollTop)); }
+      catch (e) { /* noop */ }
+    }
+  });
+
+  // 3) Save on any tab close / navigation (yedek)
+  window.addEventListener("beforeunload", function () {
+    try { sessionStorage.setItem(STORAGE_KEY, String(aside.scrollTop)); }
+    catch (e) { /* noop */ }
+  });
+})();
+</script>
 </body>
 </html>
