@@ -161,18 +161,42 @@ def reverse_journal_entry(
 # ---------------------------------------------------------------------------
 
 def recompute_invoice(invoice: Invoice) -> None:
-    """Fatura toplamlarını satırlardan yeniden hesapla."""
-    total_ht = total_tva = total_ttc = ZERO
+    """Fatura toplamlarını satırlardan yeniden hesapla.
+
+    İskonto akışı:
+        1. Her satırın HT'si (miktar × birim fiyat) hesaplanır — iskonto YOK
+        2. Satırların HT toplamı = base_ht
+        3. Discount amount = base_ht × discount_pct / 100
+        4. Fatura HT = base_ht - discount_amount
+        5. TVA satır-bazında hesaplanır ama iskonto oranınca kırpılır
+        6. TTC = HT + TVA
+    """
+    total_line_ht = ZERO
+    total_line_tva = ZERO
     for line in invoice.lines.all():
         line.recompute()
         line.save(update_fields=["ht_amount", "tva_amount", "ttc_amount", "updated_at"])
-        total_ht += line.ht_amount
-        total_tva += line.tva_amount
-        total_ttc += line.ttc_amount
-    invoice.total_ht = total_ht
-    invoice.total_tva = total_tva
-    invoice.total_ttc = total_ttc
-    invoice.save(update_fields=["total_ht", "total_tva", "total_ttc", "updated_at"])
+        total_line_ht += line.ht_amount
+        total_line_tva += line.tva_amount
+
+    discount_pct = invoice.discount_pct or ZERO
+    if discount_pct > 0:
+        multiplier = (Decimal("100") - discount_pct) / Decimal("100")
+        discount_amount = (total_line_ht * discount_pct / Decimal("100")).quantize(
+            Decimal("0.01")
+        )
+        invoice.discount_amount = discount_amount
+        invoice.total_ht = (total_line_ht - discount_amount).quantize(Decimal("0.01"))
+        invoice.total_tva = (total_line_tva * multiplier).quantize(Decimal("0.01"))
+    else:
+        invoice.discount_amount = ZERO
+        invoice.total_ht = total_line_ht
+        invoice.total_tva = total_line_tva
+    invoice.total_ttc = (invoice.total_ht + invoice.total_tva).quantize(Decimal("0.01"))
+    invoice.save(update_fields=[
+        "total_ht", "total_tva", "total_ttc",
+        "discount_amount", "updated_at",
+    ])
 
 
 def _get_account(code: str) -> Account:

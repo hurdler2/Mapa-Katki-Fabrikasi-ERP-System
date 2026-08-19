@@ -8,4 +8,5 @@ urlpatterns = [
     path("balance/", views.trial_balance_view, name="trial_balance"),
     path("ledger/<int:account_id>/", views.ledger_view, name="ledger"),
     path("payments/new/", views.payment_new, name="payment_new"),
+    path("invoices/<int:pk>/print/", views.invoice_print, name="invoice_print"),
 ]

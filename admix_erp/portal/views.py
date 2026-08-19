@@ -348,11 +348,20 @@ def accounting_invoice_new(request: HttpRequest) -> HttpResponse:
             else:
                 partner_kwargs["supplier"] = Supplier.objects.get(pk=int(data.get("supplier")))
 
+            # İskonto — müşteri varsayılanı veya form'da override edilen
+            try:
+                discount_pct = Decimal(data.get("discount_pct", "0") or "0")
+            except Exception:  # noqa: BLE001
+                discount_pct = Decimal("0")
+            if discount_pct < 0: discount_pct = Decimal("0")
+            if discount_pct > 100: discount_pct = Decimal("100")
+
             inv = Invoice.objects.create(
                 invoice_number=data.get("invoice_number"),
                 type=inv_type, date=date, period=period,
                 due_date=(dt.date.fromisoformat(data["due_date"]) if data.get("due_date") else None),
                 notes=data.get("notes", ""),
+                discount_pct=discount_pct,
                 attachment=request.FILES.get("attachment"),
                 attachment_note=data.get("attachment_note", ""),
                 **partner_kwargs,

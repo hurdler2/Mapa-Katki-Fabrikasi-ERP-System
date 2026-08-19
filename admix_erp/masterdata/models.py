@@ -105,6 +105,15 @@ class Customer(TimeStamped):
     tax_no = models.CharField("Vergi No", max_length=30, blank=True)
     is_active = models.BooleanField("Aktif", default=True)
 
+    # Fatura ozel ayarlari
+    default_discount_pct = models.DecimalField(
+        "Varsayılan iskonto (%)", max_digits=5, decimal_places=2,
+        default=0,
+        help_text="Bu müşteriye faturada otomatik uygulanacak iskonto (0-100).",
+    )
+    address = models.TextField("Adres", blank=True)
+    email = models.EmailField("E-posta", blank=True)
+
     class Meta:
         verbose_name = "Müşteri"
         verbose_name_plural = "Müşteriler"
@@ -112,6 +121,95 @@ class Customer(TimeStamped):
 
     def __str__(self) -> str:
         return f"{self.code} — {self.name}"
+
+
+class CompanyProfile(TimeStamped):
+    """Şirket profili (SINGLETON) — MAPA'nın kendi kimliği + logo + banka.
+
+    Sistemde en fazla bir tane olur. Fatura PDF/print başlığında,
+    e-posta imzalarında ve resmi belgelerde kullanılır.
+    """
+
+    legal_name = models.CharField(
+        "Yasal ünvan", max_length=200,
+        default="SARL MAPA ALGÉRIE",
+    )
+    short_name = models.CharField(
+        "Kısa ad", max_length=60, default="MAPA",
+    )
+    tagline = models.CharField(
+        "Slogan", max_length=200, blank=True,
+        default="Sıvı Beton Katkısı Fabrikası",
+    )
+    logo = models.ImageField(
+        "Logo (PNG/JPG, max 2MB)", upload_to="company/",
+        null=True, blank=True,
+    )
+
+    # İletişim
+    address = models.TextField(
+        "Adres", blank=True,
+        default="Zone Industrielle Blida, Algérie",
+    )
+    phone = models.CharField("Telefon", max_length=30, blank=True)
+    email = models.EmailField("E-posta", blank=True)
+    website = models.URLField("Web sitesi", blank=True)
+
+    # Cezayir vergi kimliği
+    tax_no = models.CharField(
+        "NIF (Vergi kimlik no)", max_length=30, blank=True,
+        help_text="Numéro d'Identification Fiscale",
+    )
+    tax_activity_no = models.CharField(
+        "NIS (İstatistik no)", max_length=30, blank=True,
+        help_text="Numéro d'Identification Statistique",
+    )
+    trade_register_no = models.CharField(
+        "RC (Ticaret sicil no)", max_length=40, blank=True,
+        help_text="Registre du Commerce",
+    )
+    article_of_import_no = models.CharField(
+        "Article No", max_length=30, blank=True,
+    )
+
+    # Banka
+    bank_name = models.CharField("Banka", max_length=100, blank=True)
+    bank_rib = models.CharField(
+        "RIB (Cezayir hesap kimlik)", max_length=40, blank=True,
+        help_text="Relevé d'Identité Bancaire",
+    )
+    bank_iban = models.CharField("IBAN", max_length=40, blank=True)
+
+    # Fatura üstü ek metin
+    invoice_header_note = models.TextField(
+        "Fatura üst notu", blank=True,
+    )
+    invoice_footer_note = models.TextField(
+        "Fatura alt notu (ödeme koşulları vs.)", blank=True,
+        default="Ödeme vadesi 30 gün. Geç ödemelerde faiz uygulanır.",
+    )
+
+    class Meta:
+        verbose_name = "Şirket Profili"
+        verbose_name_plural = "Şirket Profili"
+
+    def __str__(self) -> str:
+        return self.legal_name
+
+    def save(self, *args, **kwargs):
+        # Singleton — pk=1 olarak zorla
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        # Silmeyi engelle
+        pass
+
+    @classmethod
+    def get(cls) -> "CompanyProfile":
+        """Tek satırlı company — yoksa varsayılanla oluşturur."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
 
 
 class Container(TimeStamped):

@@ -1,0 +1,456 @@
+{% load formats %}<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Fatura {{ inv.invoice_number }} · {{ company.short_name }}</title>
+<style>
+@page {
+  size: A4;
+  margin: 14mm 14mm 14mm 14mm;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 11pt;
+  color: #1a1a1a;
+  background: #fff;
+  line-height: 1.35;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.doc {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 18mm 14mm;
+  background: #fff;
+}
+@media screen {
+  body { background: #eef1f5; padding: 20px 0; }
+  .doc {
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    margin-bottom: 24px;
+  }
+  .toolbar {
+    max-width: 210mm; margin: 0 auto 16px;
+    display: flex; gap: 12px; justify-content: flex-end;
+  }
+  .toolbar button, .toolbar a {
+    padding: 8px 18px; background: #1D4ED8; color: #fff;
+    border: none; border-radius: 6px; font-weight: 500;
+    cursor: pointer; text-decoration: none; font-size: 13px;
+  }
+  .toolbar a.back { background: #6B7280; }
+}
+@media print {
+  .toolbar { display: none !important; }
+  body { background: #fff; }
+  .doc { box-shadow: none; padding: 0; margin: 0; max-width: none; }
+}
+
+/* Antet */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 18px;
+  border-bottom: 2px solid #1D4ED8;
+  margin-bottom: 20px;
+}
+.header .company {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.header .logo-box img {
+  max-width: 90px; max-height: 90px;
+  object-fit: contain;
+}
+.header .logo-placeholder {
+  width: 90px; height: 90px;
+  background: linear-gradient(135deg, #1D4ED8, #3B82F6);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px;
+  font-weight: 700; font-size: 32px;
+  letter-spacing: -0.02em;
+}
+.header .company-info h1 {
+  margin: 0 0 4px;
+  font-size: 20pt;
+  color: #101828;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.header .company-info .tagline {
+  color: #6b7280; font-size: 10pt; margin-bottom: 8px;
+}
+.header .company-info .contact {
+  color: #4b5563; font-size: 9.5pt;
+  line-height: 1.5;
+}
+
+.header .invoice-meta {
+  text-align: right;
+  min-width: 220px;
+}
+.header .invoice-meta .doc-type {
+  display: inline-block;
+  padding: 4px 14px;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1.5px solid #1D4ED8;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 10pt;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.header .invoice-meta .inv-number {
+  font-size: 18pt; font-weight: 700; color: #1D4ED8;
+  margin-bottom: 6px; font-family: "SF Mono", Menlo, monospace;
+}
+.header .invoice-meta table {
+  margin-left: auto; font-size: 9.5pt; color: #4b5563;
+  border-collapse: collapse;
+}
+.header .invoice-meta td {
+  padding: 2px 0; padding-left: 12px;
+}
+.header .invoice-meta td:first-child { text-align: right; color: #9ca3af; }
+.header .invoice-meta td:last-child  { text-align: right; color: #101828; font-weight: 600; }
+
+/* Parties (Emis par / Facturé à) */
+.parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.party-box {
+  padding: 14px 16px;
+  background: #f9fafb;
+  border-left: 3px solid #1D4ED8;
+  border-radius: 4px;
+}
+.party-box .label {
+  font-size: 9pt; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: #6b7280;
+  margin-bottom: 6px;
+}
+.party-box .name {
+  font-size: 12pt; font-weight: 700; color: #101828;
+  margin-bottom: 4px;
+}
+.party-box .detail {
+  font-size: 9.5pt; color: #4b5563; line-height: 1.5;
+}
+.party-box .detail .tax {
+  margin-top: 4px; font-family: "SF Mono", Menlo, monospace; font-size: 9pt;
+}
+
+/* Lines table */
+table.lines {
+  width: 100%; border-collapse: collapse;
+  margin-bottom: 16px; font-size: 10pt;
+}
+table.lines thead th {
+  background: #1D4ED8; color: #fff;
+  padding: 10px 8px; text-align: left;
+  font-size: 8.5pt; font-weight: 600;
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+table.lines thead th.num { text-align: right; }
+table.lines tbody td {
+  padding: 8px; border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+table.lines tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.lines tbody tr:nth-child(even) td { background: #fafbfc; }
+table.lines .desc { font-weight: 500; color: #1f2937; }
+table.lines .prod-code { font-family: "SF Mono", Menlo, monospace; font-size: 8.5pt; color: #6b7280; }
+
+/* Totals */
+.totals-wrap {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px; margin-top: 8px;
+  page-break-inside: avoid;
+}
+.totals {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 12px 16px;
+  font-size: 10pt;
+}
+.totals .row {
+  display: flex; justify-content: space-between;
+  padding: 4px 0;
+}
+.totals .row.discount { color: #DC6803; font-weight: 500; }
+.totals .row.subtotal { border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 4px; }
+.totals .row.grand {
+  border-top: 2px solid #1D4ED8; padding-top: 8px; margin-top: 6px;
+  font-size: 12pt; font-weight: 700; color: #1D4ED8;
+}
+.totals .row .label { color: #4b5563; }
+.totals .row.grand .label { color: #1D4ED8; }
+.totals .row .val { font-variant-numeric: tabular-nums; }
+
+.notes-box {
+  padding: 12px 14px; background: #FFFBEB;
+  border-left: 3px solid #F59E0B; border-radius: 4px;
+  font-size: 9.5pt; color: #78350F; line-height: 1.5;
+}
+.notes-box .label {
+  font-weight: 700; margin-bottom: 3px; font-size: 8.5pt;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* Footer — banka + yasal */
+.footer {
+  margin-top: 22px; padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+  display: grid; grid-template-columns: 2fr 1fr;
+  gap: 20px; font-size: 8.5pt; color: #6b7280;
+  page-break-inside: avoid;
+}
+.footer .payment-info .label {
+  font-weight: 700; color: #374151; margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: 0.06em; font-size: 8pt;
+}
+.footer .payment-info .bank-row {
+  padding: 2px 0; line-height: 1.4;
+}
+.footer .payment-info .bank-row strong { color: #101828; font-weight: 600; font-family: "SF Mono", Menlo, monospace; }
+.footer .signature {
+  text-align: right; padding-top: 20px;
+}
+.footer .signature .sig-line {
+  border-top: 1px solid #9ca3af; padding-top: 6px;
+  min-width: 140px; margin-left: auto;
+  font-size: 9pt; color: #4b5563; font-weight: 600;
+}
+
+.legal {
+  margin-top: 18px; padding: 8px 0;
+  border-top: 1px dashed #d1d5db;
+  text-align: center; font-size: 7.5pt; color: #9ca3af;
+  line-height: 1.5;
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a class="back" href="/portal/muhasebe/faturalar/{{ inv.pk }}/">← Detay sayfası</a>
+  <button onclick="window.print()">🖨️ Yazdır / PDF İndir</button>
+</div>
+
+<div class="doc">
+
+  <!-- ANTET -->
+  <div class="header">
+    <div class="company">
+      <div class="logo-box">
+        {% if company.logo %}
+          <img src="{{ company.logo.url }}" alt="{{ company.short_name }}">
+        {% else %}
+          <div class="logo-placeholder">{{ company.short_name|slice:":4"|upper }}</div>
+        {% endif %}
+      </div>
+      <div class="company-info">
+        <h1>{{ company.legal_name }}</h1>
+        <div class="tagline">{{ company.tagline }}</div>
+        <div class="contact">
+          {{ company.address|linebreaksbr }}<br>
+          {% if company.phone %}Tél: {{ company.phone }}{% endif %}
+          {% if company.email %} · {{ company.email }}{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="invoice-meta">
+      <div class="doc-type">
+        {% if inv.type == 'SALES' %}FACTURE / FATURA
+        {% elif inv.type == 'PURCHASE' %}FACTURE D'ACHAT / ALIM FATURASI
+        {% elif inv.type == 'CN_SALES' %}NOTE DE CRÉDIT / ALACAK DEK.
+        {% elif inv.type == 'CN_PURCHASE' %}NOTE DE DÉBIT
+        {% endif %}
+      </div>
+      <div class="inv-number">{{ inv.invoice_number }}</div>
+      <table>
+        <tr><td>Tarih:</td><td>{{ inv.date|date:'d.m.Y' }}</td></tr>
+        {% if inv.due_date %}<tr><td>Vade:</td><td>{{ inv.due_date|date:'d.m.Y' }}</td></tr>{% endif %}
+        <tr><td>Para birimi:</td><td>{{ inv.currency }}</td></tr>
+        {% if inv.period %}<tr><td>Dönem:</td><td>{{ inv.period }}</td></tr>{% endif %}
+      </table>
+    </div>
+  </div>
+
+  <!-- İSSUER / RECIPIENT -->
+  <div class="parties">
+    <div class="party-box">
+      <div class="label">📤 Émetteur (Düzenleyen)</div>
+      <div class="name">{{ company.legal_name }}</div>
+      <div class="detail">
+        {{ company.address|linebreaksbr }}
+        {% if company.tax_no or company.trade_register_no %}
+          <div class="tax">
+            {% if company.tax_no %}NIF: {{ company.tax_no }}<br>{% endif %}
+            {% if company.tax_activity_no %}NIS: {{ company.tax_activity_no }}<br>{% endif %}
+            {% if company.trade_register_no %}RC: {{ company.trade_register_no }}{% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="party-box" style="border-left-color:#DC6803;background:#FFFBEB">
+      <div class="label" style="color:#92400E">📥 Facturé à (Cari)</div>
+      {% if inv.customer %}
+        <div class="name">{{ inv.customer.name }}</div>
+        <div class="detail">
+          {% if inv.customer.address %}{{ inv.customer.address|linebreaksbr }}<br>{% endif %}
+          {% if inv.customer.contact %}{{ inv.customer.contact }}<br>{% endif %}
+          {% if inv.customer.tax_no %}<div class="tax">NIF: {{ inv.customer.tax_no }}</div>{% endif %}
+          <div class="tax">Kod: {{ inv.customer.code }}</div>
+        </div>
+      {% elif inv.supplier %}
+        <div class="name">{{ inv.supplier.name }}</div>
+        <div class="detail">
+          {% if inv.supplier.contact %}{{ inv.supplier.contact }}<br>{% endif %}
+          {% if inv.supplier.tax_no %}<div class="tax">NIF: {{ inv.supplier.tax_no }}</div>{% endif %}
+          <div class="tax">Kod: {{ inv.supplier.code }}</div>
+        </div>
+      {% else %}
+        <div class="name" style="color:#9ca3af">—</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- LINES -->
+  <table class="lines">
+    <thead>
+      <tr>
+        <th style="width:36px">#</th>
+        <th>Açıklama / Désignation</th>
+        <th class="num" style="width:70px">Miktar</th>
+        <th class="num" style="width:100px">Birim Fiyat</th>
+        <th class="num" style="width:100px">HT</th>
+        <th class="num" style="width:70px">TVA</th>
+        <th class="num" style="width:110px">TTC</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for line in inv.lines.all %}
+      <tr>
+        <td>{{ line.sequence }}</td>
+        <td class="desc">
+          {% if line.product %}<div class="prod-code">{{ line.product.code }}</div>{% endif %}
+          {{ line.description }}
+        </td>
+        <td class="num">{{ line.quantity|fr_number:3 }}</td>
+        <td class="num">{{ line.unit_price|fr_number }}</td>
+        <td class="num">{{ line.ht_amount|fr_number }}</td>
+        <td class="num">{{ line.tva_rate.rate_pct }}%</td>
+        <td class="num"><strong>{{ line.ttc_amount|fr_number }}</strong></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" style="text-align:center;padding:24px;color:#9ca3af">Satır yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- TOTALS + NOTES -->
+  <div class="totals-wrap">
+    <div>
+      {% if inv.notes %}
+        <div class="notes-box">
+          <div class="label">Notlar / Observations</div>
+          {{ inv.notes|linebreaksbr }}
+        </div>
+      {% endif %}
+    </div>
+    <div class="totals">
+      {% if inv.discount_pct > 0 %}
+        <div class="row">
+          <span class="label">Satır HT toplamı:</span>
+          <span class="val">{{ inv.total_ht|add:inv.discount_amount|fr_number }}</span>
+        </div>
+        <div class="row discount">
+          <span class="label">İskonto (%{{ inv.discount_pct }}):</span>
+          <span class="val">-{{ inv.discount_amount|fr_number }}</span>
+        </div>
+        <div class="row subtotal">
+          <span class="label">Toplam HT:</span>
+          <span class="val"><strong>{{ inv.total_ht|fr_number }}</strong></span>
+        </div>
+      {% else %}
+        <div class="row">
+          <span class="label">Toplam HT (Hors taxes):</span>
+          <span class="val"><strong>{{ inv.total_ht|fr_number }}</strong></span>
+        </div>
+      {% endif %}
+      <div class="row">
+        <span class="label">Toplam TVA:</span>
+        <span class="val">{{ inv.total_tva|fr_number }}</span>
+      </div>
+      <div class="row grand">
+        <span class="label">TOTAL TTC:</span>
+        <span class="val">{{ inv.total_ttc|dzd }}</span>
+      </div>
+      {% if inv.amount_paid > 0 %}
+        <div class="row" style="color:#16A34A;margin-top:6px">
+          <span class="label">Ödenen:</span>
+          <span class="val">{{ inv.amount_paid|fr_number }} DZD</span>
+        </div>
+        <div class="row" style="color:#D92D20">
+          <span class="label">Kalan:</span>
+          <span class="val"><strong>{{ inv.amount_due|fr_number }} DZD</strong></span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="payment-info">
+      <div class="label">Ödeme Bilgileri / Coordonnées bancaires</div>
+      {% if company.bank_name %}
+        <div class="bank-row">Banka: <strong>{{ company.bank_name }}</strong></div>
+      {% endif %}
+      {% if company.bank_rib %}
+        <div class="bank-row">RIB: <strong>{{ company.bank_rib }}</strong></div>
+      {% endif %}
+      {% if company.bank_iban %}
+        <div class="bank-row">IBAN: <strong>{{ company.bank_iban }}</strong></div>
+      {% endif %}
+      {% if company.invoice_footer_note %}
+        <div style="margin-top:8px;color:#6b7280;font-style:italic">
+          {{ company.invoice_footer_note|linebreaksbr }}
+        </div>
+      {% endif %}
+    </div>
+    <div class="signature">
+      <div class="sig-line">Kaşe & İmza</div>
+    </div>
+  </div>
+
+  <div class="legal">
+    {{ company.legal_name }}
+    {% if company.trade_register_no %}· RC {{ company.trade_register_no }}{% endif %}
+    {% if company.tax_no %}· NIF {{ company.tax_no }}{% endif %}
+    {% if company.article_of_import_no %}· Art. {{ company.article_of_import_no }}{% endif %}
+    <br>
+    Faturayı elektronik olarak alıyorsanız yazdırmanıza gerek yoktur. ·
+    Ce document a été généré électroniquement.
+  </div>
+
+</div>
+
+{% if auto_print %}
+<script>window.addEventListener('load', function(){ setTimeout(function(){ window.print(); }, 400); });</script>
+{% endif %}
+
+</body>
+</html>

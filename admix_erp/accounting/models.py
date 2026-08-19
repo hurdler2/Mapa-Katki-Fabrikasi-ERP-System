@@ -374,6 +374,14 @@ class Invoice(TimeStamped):
     total_ttc = models.DecimalField(
         "Toplam TTC (KDV dahil)", max_digits=14, decimal_places=2, default=ZERO
     )
+    # Müşteri iskontosu — satır toplamı üzerinden yüzde
+    discount_pct = models.DecimalField(
+        "İskonto (%)", max_digits=5, decimal_places=2, default=ZERO,
+        help_text="Satır HT toplamı üzerinden uygulanan iskonto yüzdesi.",
+    )
+    discount_amount = models.DecimalField(
+        "İskonto tutarı", max_digits=14, decimal_places=2, default=ZERO,
+    )
     amount_paid = models.DecimalField(
         "Ödenen", max_digits=14, decimal_places=2, default=ZERO
     )

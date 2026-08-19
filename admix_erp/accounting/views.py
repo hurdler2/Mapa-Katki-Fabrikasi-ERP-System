@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .models import Account, Invoice, Payment
 from .services import general_ledger, trial_balance
+from masterdata.models import CompanyProfile
 
 
 def _parse_range(request: HttpRequest):
@@ -54,6 +55,27 @@ def _perm_pay(request):
         return
     if not request.user.has_perm("accounting.add_payment"):
         raise PermissionDenied("Ödeme eklemek için yetkiniz yok.")
+
+
+@login_required
+def invoice_print(request: HttpRequest, pk: int) -> HttpResponse:
+    """Yazdırılabilir / PDF olarak indirilebilir fatura sayfası.
+
+    - A4 boyutunda print CSS
+    - Şirket logosu + antet
+    - Müşteri/Tedarikçi bilgileri
+    - Fatura satırları + iskonto + toplamlar
+    - Cezayir yasal alanları (NIF, NIS, RC, RIB)
+    - Ctrl+P ile PDF olarak kaydedilir
+    - ?auto=1 parametresi ile açılınca otomatik yazdır dialog'u
+    """
+    inv = get_object_or_404(
+        Invoice.objects.select_related("customer", "supplier", "period"), pk=pk)
+    company = CompanyProfile.get()
+    return render(request, "accounting/invoice_print.html", {
+        "inv": inv, "company": company,
+        "auto_print": request.GET.get("auto") == "1",
+    })
 
 
 @login_required

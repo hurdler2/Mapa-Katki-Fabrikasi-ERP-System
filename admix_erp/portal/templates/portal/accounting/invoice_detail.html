@@ -4,6 +4,10 @@
 {% block topbar %}Fatura · {{ inv.invoice_number }}{% endblock %}
 {% block sidebar %}{% include "portal/accounting/_sidebar.html" %}{% endblock %}
 
+{% block topbar_extra %}
+<a href="{% url 'accounting:invoice_print' inv.pk %}" target="_blank" class="btn btn-primary" style="font-size:13px">🖨️ PDF Yazdır / İndir</a>
+{% endblock %}
+
 {% block content %}
 
 <div style="margin-bottom:16px">
@@ -62,7 +66,17 @@
     </tbody>
   </table>
 
-  <div style="max-width:400px;margin-left:auto">
+  <div style="max-width:420px;margin-left:auto">
+    {% if inv.discount_pct > 0 %}
+      <div style="display:flex;justify-content:space-between;padding:6px 0;color:var(--text-muted)">
+        <span>Satır HT toplamı:</span>
+        <span>{{ inv.total_ht|add:inv.discount_amount|fr_number }} DZD</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;color:var(--warning)">
+        <span>💰 İskonto (%{{ inv.discount_pct }}):</span>
+        <strong>-{{ inv.discount_amount|fr_number }} DZD</strong>
+      </div>
+    {% endif %}
     <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Toplam HT (KDVsiz):</span><strong>{{ inv.total_ht|dzd }}</strong></div>
     <div style="display:flex;justify-content:space-between;padding:6px 0"><span>Toplam TVA:</span><strong>{{ inv.total_tva|dzd }}</strong></div>
     <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);font-size:16px"><span>Toplam TTC (KDV dahil):</span><strong style="color:var(--primary)">{{ inv.total_ttc|dzd }}</strong></div>
