@@ -69,23 +69,56 @@ class Recipe(TimeStamped):
         """Reçete satırlarını `target_qty` için ölçekle.
 
         factor = target_qty / base_batch_size
-        Döner: [{raw_material, quantity, sequence, tolerance_pct}, ...]
+        Döner: [{raw_material, quantity, sequence, tolerance_pct, is_complement}, ...]
+
+        Eğer bir satır ``is_complement=True`` ise, o satırın miktarı diğer
+        (sabit) satırların ölçeklenmiş toplamı ile hedef arasındaki farktır.
+        (Bilan massique §22 PLANIFIÉ)
         """
         target_qty = Decimal(target_qty)
         if self.base_batch_size <= 0:
             raise ValueError("base_batch_size sıfır veya negatif olamaz.")
         factor = target_qty / self.base_batch_size
-        out: list[dict] = []
-        for line in self.lines.select_related("raw_material").all():
-            out.append(
-                {
-                    "raw_material": line.raw_material,
-                    "quantity": (line.quantity * factor).quantize(Decimal("0.0001")),
-                    "sequence": line.sequence,
-                    "tolerance_pct": line.tolerance_pct,
-                }
-            )
-        return out
+        Q = Decimal("0.0001")
+
+        fixed: list[dict] = []
+        complement: dict | None = None
+        for line in self.lines.select_related("raw_material").order_by("sequence"):
+            row = {
+                "raw_material": line.raw_material,
+                "quantity": (line.quantity * factor).quantize(Q),
+                "sequence": line.sequence,
+                "tolerance_pct": line.tolerance_pct,
+                "is_complement": line.is_complement,
+            }
+            if line.is_complement:
+                complement = row
+            else:
+                fixed.append(row)
+
+        if complement is not None:
+            fixed_sum = sum((r["quantity"] for r in fixed), Decimal("0"))
+            complement["quantity"] = (target_qty - fixed_sum).quantize(Q)
+
+        merged = fixed + ([complement] if complement else [])
+        merged.sort(key=lambda r: r["sequence"])
+        return merged
+
+    def bilan_massique(self, target_qty: Decimal) -> dict:
+        """§22 kütle bilançosu özeti: hedef, sabit toplam, complément."""
+        lines = self.scaled_lines(target_qty)
+        fixed_sum = sum(
+            (l["quantity"] for l in lines if not l["is_complement"]),
+            Decimal("0"),
+        )
+        comp = next((l for l in lines if l["is_complement"]), None)
+        return {
+            "target_qty": Decimal(target_qty),
+            "fixed_sum": fixed_sum,
+            "complement_qty": comp["quantity"] if comp else Decimal("0"),
+            "complement_material": comp["raw_material"] if comp else None,
+            "has_complement": comp is not None,
+        }
 
 
 class RecipeLine(TimeStamped):
@@ -104,12 +137,24 @@ class RecipeLine(TimeStamped):
     tolerance_pct = models.DecimalField(
         "Tolerans (%)", max_digits=5, decimal_places=2, default=Decimal("1.00")
     )
+    is_complement = models.BooleanField(
+        "Tamamlayıcı (§22)", default=False,
+        help_text="COMPLÉMENT: base_batch_size'a otomatik tamamlar (genelde su).",
+    )
 
     class Meta:
         verbose_name = "Reçete Satırı"
         verbose_name_plural = "Reçete Satırları"
         unique_together = (("recipe", "raw_material"),)
         ordering = ["sequence"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recipe"],
+                condition=models.Q(is_complement=True),
+                name="one_complement_per_recipe",
+            ),
+        ]
 
     def __str__(self) -> str:
-        return f"{self.recipe} · {self.raw_material.code} × {self.quantity}"
+        marker = " [COMPLÉMENT]" if self.is_complement else ""
+        return f"{self.recipe} · {self.raw_material.code} × {self.quantity}{marker}"

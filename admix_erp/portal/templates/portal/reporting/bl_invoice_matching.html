@@ -1,0 +1,109 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}BL-Fatura Eşleştirme{% endblock %}
+{% block topbar %}BL Client ↔ Fatura eşleştirme{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Raporlar</div>
+<a class="menu-item" href="{% url 'portal:reporting_hub' %}"><span class="icon">📊</span> Rapor Merkezi</a>
+<a class="menu-item" href="{% url 'portal:report_aging_clients' %}"><span class="icon">⏳</span> Alacak Yaşlandırma</a>
+<a class="menu-item" href="{% url 'portal:report_stock_valuation' %}"><span class="icon">📦</span> Stok Değerleme</a>
+<a class="menu-item" href="{% url 'portal:report_production_yields' %}"><span class="icon">⚙️</span> Üretim Verimi</a>
+<a class="menu-item active" href="{% url 'portal:report_bl_invoice' %}"><span class="icon">🔗</span> BL-Fatura Eşleştirme</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi success">
+    <div class="label">Eşleşen BL</div>
+    <div class="value">{{ matched_count }}</div>
+    <div class="sub">Fatura kesildi</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Bekleyen BL</div>
+    <div class="value">{{ pending_count }}</div>
+    <div class="sub">Fatura kesilmemiş</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">Bekleyen tutar</div>
+    <div class="value">{{ total_pending_amount|fr_short }}</div>
+    <div class="sub">DZD · fatura edilecek</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">İptal edilen</div>
+    <div class="value">{{ cancelled_count }}</div>
+    <div class="sub">BL</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">
+    ⚠ Faturalandırılmamış BL'ler ({{ pending_count }})
+  </h3>
+  {% if pending_count > 0 %}
+  <div style="margin-bottom:10px;font-size:13px;color:var(--text-muted)">
+    Aşağıdaki BL'ler henüz faturaya bağlanmamış — nakit akışı için hızlı fatura kesin.
+  </div>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#FEF3C7">
+        <th style="text-align:left;padding:8px;font-size:12px;color:#92400E">BL No</th>
+        <th style="text-align:left;padding:8px;font-size:12px;color:#92400E">Müşteri</th>
+        <th style="text-align:left;padding:8px;font-size:12px;color:#92400E">Sevk Tarihi</th>
+        <th style="text-align:right;padding:8px;font-size:12px;color:#92400E">Tutar (HT)</th>
+        <th style="text-align:center;padding:8px;font-size:12px;color:#92400E">Statü</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for bl in pending %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px"><a href="{% url 'portal:bl_client_detail' bl.pk %}" style="color:var(--primary);font-family:monospace">{{ bl.shipment_number }}</a></td>
+        <td style="padding:8px"><b>{{ bl.customer.code }}</b> · {{ bl.customer.name|truncatechars:26 }}</td>
+        <td style="padding:8px">{{ bl.shipped_date }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace;font-weight:600">{{ bl.total_amount|fr_number:2 }}</td>
+        <td style="padding:8px;text-align:center">
+          {% if bl.status == 'DELIVERED' %}<span style="background:#FEF3C7;color:#92400E;padding:3px 8px;border-radius:8px;font-size:11px">Teslim</span>
+          {% else %}<span style="background:#E5E7EB;color:#4B5563;padding:3px 8px;border-radius:8px;font-size:11px">Taslak</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:20px;text-align:center;color:var(--text-muted);background:#F0FDF4;border-radius:8px">
+    ✓ Tüm sevkiyat belgeleri faturalanmış.
+  </div>
+  {% endif %}
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">
+    ✓ Eşleşen BL'ler (Son 50)
+  </h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9">
+        <th style="text-align:left;padding:8px;font-size:12px;color:var(--text-muted)">BL No</th>
+        <th style="text-align:left;padding:8px;font-size:12px;color:var(--text-muted)">Müşteri</th>
+        <th style="text-align:left;padding:8px;font-size:12px;color:var(--text-muted)">Sevk Tarihi</th>
+        <th style="text-align:left;padding:8px;font-size:12px;color:var(--text-muted)">Fatura</th>
+        <th style="text-align:left;padding:8px;font-size:12px;color:var(--text-muted)">Fatura Tarihi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for bl in matched %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-family:monospace">{{ bl.shipment_number }}</td>
+        <td style="padding:8px">{{ bl.customer.code }} · {{ bl.customer.name|truncatechars:20 }}</td>
+        <td style="padding:8px">{{ bl.shipped_date }}</td>
+        <td style="padding:8px"><a href="{% url 'portal:accounting_invoice_detail' bl.invoice.pk %}" style="color:var(--primary);font-family:monospace">{{ bl.invoice.invoice_number }}</a></td>
+        <td style="padding:8px">{{ bl.invoice.date }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-muted)">Henüz faturalanmış BL yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

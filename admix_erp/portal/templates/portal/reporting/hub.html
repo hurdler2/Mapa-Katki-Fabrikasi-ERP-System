@@ -1,0 +1,117 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}Rapor Merkezi{% endblock %}
+{% block topbar %}Tableau de bord reporting{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Raporlar</div>
+<a class="menu-item active" href="{% url 'portal:reporting_hub' %}"><span class="icon">📊</span> Rapor Merkezi</a>
+<a class="menu-item" href="{% url 'portal:accounting' %}"><span class="icon">💰</span> Mali Pano</a>
+<a class="menu-item" href="{% url 'portal:trial_balance' %}"><span class="icon">📖</span> Mizan</a>
+<a class="menu-item" href="/reporting/dashboard/"><span class="icon">📈</span> Faz F Raporlar</a>
+<a class="menu-item" href="/analytics/bi/"><span class="icon">🔎</span> BI Dashboard</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Revenus facturés (mois)</div>
+    <div class="value">{{ monthly_revenue|fr_short }}</div>
+    <div class="sub">DZD · Bu ay</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Charges totales (mois)</div>
+    <div class="value">{{ monthly_costs|fr_short }}</div>
+    <div class="sub">DZD · Bu ay</div>
+  </div>
+  <div class="kpi {% if is_profit %}success{% else %}danger{% endif %}">
+    <div class="label">Résultat net</div>
+    <div class="value">{{ net_result|fr_short }}</div>
+    <div class="sub">{% if is_profit %}📈 Bénéfice{% else %}📉 Perte{% endif %}</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Bu ay</div>
+    <div class="value">{{ monthly_revenue|fr_short }}</div>
+    <div class="sub">Faturalanan revenus</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 6px 0">Accès rapide aux rapports</h3>
+  <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px">
+    Sık kullanılan raporlara tek tıklama ile erişim.
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:14px">
+    <a href="{% url 'portal:accounting' %}" style="display:block;padding:20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:inherit;background:#FFF;transition:all 0.15s"
+       onmouseover="this.style.borderColor='#3B82F6';this.style.boxShadow='0 4px 12px rgba(59,130,246,0.1)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+      <div style="width:44px;height:44px;background:#EFF6FF;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+        <span style="font-size:22px">📊</span>
+      </div>
+      <div style="font-weight:600;margin-bottom:2px">Résultat financier</div>
+      <div style="color:var(--text-muted);font-size:12px">P&L théorique et trésorerie</div>
+    </a>
+
+    <a href="{% url 'portal:report_aging_clients' %}" style="display:block;padding:20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:inherit;background:#FFF"
+       onmouseover="this.style.borderColor='#3B82F6';this.style.boxShadow='0 4px 12px rgba(59,130,246,0.1)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+      <div style="width:44px;height:44px;background:#EFF6FF;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+        <span style="font-size:22px">👥</span>
+      </div>
+      <div style="font-weight:600;margin-bottom:2px">Échéancier clients</div>
+      <div style="color:var(--text-muted);font-size:12px">Créances par ancienneté (aging)</div>
+    </a>
+
+    <a href="/admin/purchasing/purchaseorder/" style="display:block;padding:20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:inherit;background:#FFF"
+       onmouseover="this.style.borderColor='#3B82F6';this.style.boxShadow='0 4px 12px rgba(59,130,246,0.1)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+      <div style="width:44px;height:44px;background:#F0FDF4;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+        <span style="font-size:22px">🏭</span>
+      </div>
+      <div style="font-weight:600;margin-bottom:2px">Échéancier fournisseurs</div>
+      <div style="color:var(--text-muted);font-size:12px">Dettes par ancienneté</div>
+    </a>
+
+    <a href="{% url 'portal:report_production_yields' %}" style="display:block;padding:20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:inherit;background:#FFF"
+       onmouseover="this.style.borderColor='#3B82F6';this.style.boxShadow='0 4px 12px rgba(59,130,246,0.1)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+      <div style="width:44px;height:44px;background:#FEF3C7;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+        <span style="font-size:22px">⚙️</span>
+      </div>
+      <div style="font-weight:600;margin-bottom:2px">Rendements production</div>
+      <div style="color:var(--text-muted);font-size:12px">Analyse des ordres de production</div>
+    </a>
+
+    <a href="/admin/expenses/expense/" style="display:block;padding:20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:inherit;background:#FFF"
+       onmouseover="this.style.borderColor='#3B82F6';this.style.boxShadow='0 4px 12px rgba(59,130,246,0.1)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+      <div style="width:44px;height:44px;background:#F5F3FF;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+        <span style="font-size:22px">💳</span>
+      </div>
+      <div style="font-weight:600;margin-bottom:2px">Répartition dépenses</div>
+      <div style="color:var(--text-muted);font-size:12px">Par catégorie et bénéficiaire</div>
+    </a>
+
+    <a href="{% url 'portal:report_stock_valuation' %}" style="display:block;padding:20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:inherit;background:#FFF"
+       onmouseover="this.style.borderColor='#3B82F6';this.style.boxShadow='0 4px 12px rgba(59,130,246,0.1)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+      <div style="width:44px;height:44px;background:#DBEAFE;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+        <span style="font-size:22px">📦</span>
+      </div>
+      <div style="font-weight:600;margin-bottom:2px">Valorisation stocks</div>
+      <div style="color:var(--text-muted);font-size:12px">MP et produits finis</div>
+    </a>
+
+    <a href="{% url 'portal:report_bl_invoice' %}" style="display:block;padding:20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:inherit;background:#FFF"
+       onmouseover="this.style.borderColor='#3B82F6';this.style.boxShadow='0 4px 12px rgba(59,130,246,0.1)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+      <div style="width:44px;height:44px;background:#FEF2F2;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+        <span style="font-size:22px">🔗</span>
+      </div>
+      <div style="font-weight:600;margin-bottom:2px">BL-Fatura Eşleştirme</div>
+      <div style="color:var(--text-muted);font-size:12px">Bordereaux ↔ Factures matching</div>
+    </a>
+  </div>
+</div>
+{% endblock %}

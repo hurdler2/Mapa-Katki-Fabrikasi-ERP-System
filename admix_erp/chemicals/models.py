@@ -490,6 +490,141 @@ class CertificateOfConformity(TimeStamped):
 
 
 # ---------------------------------------------------------------------------
+# Sprint 9 — Factory Production Control audit (NB inspection kayıtları)
+# ---------------------------------------------------------------------------
+
+class FPCAudit(TimeStamped):
+    """Factory Production Control — Onaylanmış Kuruluş (NB) fabrika denetimi.
+
+    EN 934-2 System 2+ kapsamında NB, üreticinin FPC sistemini denetler.
+    Bulguları ve sonucu bu modelde saklanır.
+    """
+
+    class AuditType(models.TextChoices):
+        INITIAL = "INITIAL", "İlk denetim (initial)"
+        SURVEILLANCE = "SURVEILLANCE", "Sürveyans (periyodik)"
+        SPECIAL = "SPECIAL", "Özel (şikayet/uyarı sonrası)"
+        RENEWAL = "RENEWAL", "Yenileme"
+
+    class Outcome(models.TextChoices):
+        PENDING = "PENDING", "Beklemede"
+        PASSED = "PASSED", "Uygun"
+        PASSED_WITH_FINDINGS = "PASSED_FINDINGS", "Uygun (bulgu ile)"
+        CONDITIONAL = "CONDITIONAL", "Şartlı"
+        FAILED = "FAILED", "Uygun değil"
+
+    audit_number = models.CharField("Audit No", max_length=40, unique=True)
+    notified_body = models.ForeignKey(
+        NotifiedBody, on_delete=models.PROTECT,
+        related_name="audits", verbose_name="Onaylanmış Kuruluş",
+    )
+    audit_type = models.CharField(
+        "Denetim tipi", max_length=16, choices=AuditType.choices,
+        default=AuditType.SURVEILLANCE,
+    )
+    audit_date = models.DateField("Denetim tarihi")
+    auditor_name = models.CharField("Denetçi", max_length=200)
+    scope = models.TextField(
+        "Kapsam",
+        help_text="Denetlenen ürünler, hatlar, prosesler.",
+    )
+    findings = models.TextField(
+        "Bulgular", blank=True,
+        help_text="Major/minor NC + observation'lar.",
+    )
+    major_nc_count = models.PositiveIntegerField("Major NC", default=0)
+    minor_nc_count = models.PositiveIntegerField("Minor NC", default=0)
+    observations_count = models.PositiveIntegerField("Observation", default=0)
+    outcome = models.CharField(
+        "Sonuç", max_length=20, choices=Outcome.choices, default=Outcome.PENDING,
+    )
+    corrective_action_deadline = models.DateField(
+        "Düzeltici aksiyon son tarihi", null=True, blank=True,
+    )
+    corrective_actions = models.TextField(
+        "Düzeltici aksiyon planı", blank=True,
+    )
+    report_file = models.FileField(
+        "Denetim raporu (PDF)", upload_to="fpc_audits/%Y/",
+        null=True, blank=True,
+    )
+    certificate_issued = models.BooleanField(
+        "Sertifika düzenlendi", default=False,
+    )
+    next_audit_date = models.DateField("Sonraki denetim", null=True, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "FPC Audit"
+        verbose_name_plural = "FPC Audits"
+        ordering = ["-audit_date"]
+
+    def __str__(self) -> str:
+        return f"{self.audit_number} · {self.notified_body} · {self.audit_date}"
+
+
+class DeclarationOfPerformance(TimeStamped):
+    """DoP — Declaration of Performance (Regulation EU 305/2011 Annex III).
+
+    CE marking için ürün başına düzenlenir. CoC (Certificate of Conformity)
+    NB tarafından verilirken, DoP üretici tarafından beyan edilir.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Taslak"
+        ISSUED = "ISSUED", "Yayımlandı"
+        SUPERSEDED = "SUPERSEDED", "Yerine yenisi geldi"
+        WITHDRAWN = "WITHDRAWN", "Geri çekildi"
+
+    dop_number = models.CharField("DoP No", max_length=40, unique=True)
+    product = models.ForeignKey(
+        Product, on_delete=models.PROTECT,
+        related_name="dops", verbose_name="Ürün",
+    )
+    coc = models.ForeignKey(
+        CertificateOfConformity, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="dops",
+        verbose_name="Bağlı CoC (NB certificate)",
+    )
+    version = models.CharField("Versiyon", max_length=10, default="1.0")
+    issue_date = models.DateField("Yayım tarihi")
+    intended_use = models.CharField(
+        "Kullanım amacı", max_length=200,
+        help_text="Örn. Superplasticizer / High Range Water Reducer.",
+    )
+    # Performance table — key: characteristic, value: declared performance
+    performance_data = models.JSONField(
+        "Performans karakteristikleri", default=dict,
+        help_text=(
+            "EN 934-2 tablo değerleri. Örn.: "
+            "{'chloride_ion_content': '<=0.1%', 'alkali_content': '<=1.5%', "
+            "'water_reduction': '>=12%', 'compressive_strength_ratio_7d': '>=125%'}"
+        ),
+    )
+    manufacturer_signatory = models.CharField(
+        "İmza sahibi (temsilci)", max_length=200,
+        help_text="Örn. 'A. Bouzidi, Directeur Général'",
+    )
+    file = models.FileField(
+        "DoP PDF", upload_to="dop/%Y/", null=True, blank=True,
+    )
+    status = models.CharField(
+        "Durum", max_length=12, choices=Status.choices, default=Status.DRAFT,
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Declaration of Performance"
+        verbose_name_plural = "Declarations of Performance"
+        ordering = ["-issue_date"]
+
+    def __str__(self) -> str:
+        return f"DoP {self.dop_number} · {self.product.code} v{self.version}"
+
+
+# ---------------------------------------------------------------------------
 # Retention numunesi + raf ömrü izleme
 # ---------------------------------------------------------------------------
 

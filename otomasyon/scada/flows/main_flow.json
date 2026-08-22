@@ -1,0 +1,497 @@
+[
+    {
+        "id": "tab_main",
+        "type": "tab",
+        "label": "MAPA Dosage Main",
+        "disabled": false,
+        "info": "PLC Modbus TCP → Dashboard → ADMIX-ERP bridge"
+    },
+    {
+        "id": "modbus_server_plc",
+        "type": "modbus-client",
+        "name": "Siemens S7-1215C",
+        "clienttype": "tcp",
+        "bufferCommands": true,
+        "stateLogEnabled": false,
+        "queueLogEnabled": false,
+        "tcpHost": "192.168.1.10",
+        "tcpPort": "502",
+        "tcpType": "DEFAULT",
+        "unit_id": "1",
+        "commandDelay": "1",
+        "clientTimeout": "1000",
+        "reconnectOnTimeout": true,
+        "reconnectTimeout": "2000",
+        "parallelUnitIdsAllowed": true
+    },
+    {
+        "id": "poll_100ms",
+        "type": "modbus-read",
+        "z": "tab_main",
+        "name": "Poll live data (100ms)",
+        "topic": "live",
+        "showStatusActivities": false,
+        "logIOActivities": false,
+        "showErrors": false,
+        "unitid": "",
+        "dataType": "HoldingRegister",
+        "adr": "40001",
+        "quantity": "40",
+        "rate": "100",
+        "rateUnit": "ms",
+        "delayOnStart": true,
+        "startDelayTime": "2",
+        "server": "modbus_server_plc",
+        "useIOFile": false,
+        "ioFile": "",
+        "useIOForPayload": false,
+        "emptyMsgOnFail": false,
+        "x": 130,
+        "y": 100,
+        "wires": [
+            [
+                "parse_registers"
+            ]
+        ]
+    },
+    {
+        "id": "parse_registers",
+        "type": "function",
+        "z": "tab_main",
+        "name": "Parse Modbus registers",
+        "func": "// Parse PLC data into JSON\nconst regs = msg.payload;\n\n// Register mapping\nfunction readReal(offset) {\n    const buf = Buffer.alloc(4);\n    buf.writeUInt16BE(regs[offset], 0);\n    buf.writeUInt16BE(regs[offset+1], 2);\n    return buf.readFloatBE(0);\n}\n\nconst data = {\n    timestamp: new Date().toISOString(),\n    batch_state: regs[0],\n    recipe_version: regs[1],\n    alarm_bits: regs[2],\n    r01_kg: readReal(9),\n    r01_temp: readReal(11),\n    r01_ph: readReal(13),\n    r01_cl: readReal(15),\n    t01_kg: readReal(17),\n    t02_kg: readReal(19),\n    t03_kg: readReal(21),\n    t04_kg: readReal(23),\n    t05_kg: readReal(25),\n    t06_water_kg: readReal(27),\n    target_kg: readReal(39)\n};\n\n// State text (matches PLC state list)\nconst states = {\n    0: 'IDLE',\n    1: 'RECIPE_LOAD',\n    2: 'PRECHECK',\n    3: 'WATER_FILL',\n    4: 'DOSE_RM1',\n    5: 'DOSE_RM2',\n    6: 'DOSE_RM3',\n    7: 'DOSE_RM4',\n    8: 'DOSE_RM5',\n    9: 'MIXING',\n    10: 'QC_SAMPLE',\n    11: 'DISCHARGE',\n    12: 'CIP_CLEAN',\n    99: 'ABORTED'\n};\ndata.state_text = states[data.batch_state] || 'UNKNOWN';\n\nmsg.payload = data;\nflow.set('current_data', data);\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 380,
+        "y": 100,
+        "wires": [
+            [
+                "gauge_weight",
+                "gauge_ph",
+                "gauge_temp",
+                "text_state",
+                "chart_trend",
+                "history_db",
+                "check_batch_complete"
+            ]
+        ]
+    },
+    {
+        "id": "gauge_weight",
+        "type": "ui_gauge",
+        "z": "tab_main",
+        "name": "Reactor weight",
+        "group": "grp_reactor",
+        "order": 1,
+        "width": 6,
+        "height": 4,
+        "gtype": "gage",
+        "title": "R-01 Ağırlık",
+        "label": "kg",
+        "format": "{{value | number:1}}",
+        "min": 0,
+        "max": 3000,
+        "colors": [
+            "#385A3F",
+            "#A87D2A",
+            "#7A2E2E"
+        ],
+        "seg1": "2800",
+        "seg2": "2950",
+        "diff": false,
+        "className": "",
+        "x": 630,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "gauge_ph",
+        "type": "ui_gauge",
+        "z": "tab_main",
+        "name": "pH",
+        "group": "grp_qc",
+        "order": 1,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "pH",
+        "label": "",
+        "format": "{{value | number:2}}",
+        "min": 0,
+        "max": 14,
+        "colors": [
+            "#7A2E2E",
+            "#385A3F",
+            "#7A2E2E"
+        ],
+        "seg1": "4.5",
+        "seg2": "7.0",
+        "x": 630,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "gauge_temp",
+        "type": "ui_gauge",
+        "z": "tab_main",
+        "name": "Temperature",
+        "group": "grp_qc",
+        "order": 2,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Sıcaklık",
+        "label": "°C",
+        "format": "{{value | number:1}}",
+        "min": 0,
+        "max": 100,
+        "colors": [
+            "#385A3F",
+            "#A87D2A",
+            "#7A2E2E"
+        ],
+        "seg1": "45",
+        "seg2": "60",
+        "x": 630,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "text_state",
+        "type": "ui_text",
+        "z": "tab_main",
+        "group": "grp_batch",
+        "order": 1,
+        "width": 6,
+        "height": 2,
+        "name": "State display",
+        "label": "Batch Durumu",
+        "format": "<b style='color:#2B4F71;font-size:24px;'>{{msg.payload.state_text}}</b>",
+        "layout": "row-spread",
+        "className": "",
+        "x": 630,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "chart_trend",
+        "type": "ui_chart",
+        "z": "tab_main",
+        "name": "Weight trend",
+        "group": "grp_trend",
+        "order": 1,
+        "width": 12,
+        "height": 5,
+        "label": "Reaktör Ağırlığı (son 1 saat)",
+        "chartType": "line",
+        "legend": "true",
+        "xformat": "HH:mm",
+        "interpolate": "linear",
+        "nodata": "waiting…",
+        "dot": false,
+        "ymin": "0",
+        "ymax": "3000",
+        "removeOlder": "1",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "3600",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#2B4F71",
+            "#385A3F",
+            "#A87D2A",
+            "#7A2E2E"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 630,
+        "y": 280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "history_db",
+        "type": "function",
+        "z": "tab_main",
+        "name": "Downsample 5s → DB",
+        "func": "// Downsample raw 100ms → 5s for historian\nconst now = Date.now();\nconst last = flow.get('last_hist_write') || 0;\nif (now - last < 5000) {\n    return null;\n}\nflow.set('last_hist_write', now);\n\nconst d = msg.payload;\nmsg.payload = {\n    ts: d.timestamp,\n    r01_kg: d.r01_kg,\n    r01_ph: d.r01_ph,\n    r01_temp: d.r01_temp,\n    r01_cl: d.r01_cl,\n    batch_state: d.batch_state\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 380,
+        "y": 200,
+        "wires": [
+            [
+                "postgres_insert"
+            ]
+        ]
+    },
+    {
+        "id": "postgres_insert",
+        "type": "postgresql",
+        "z": "tab_main",
+        "name": "Insert historian",
+        "query": "INSERT INTO scada_historian (ts, r01_kg, r01_ph, r01_temp, r01_cl, batch_state) VALUES ($1, $2, $3, $4, $5, $6)",
+        "postgreSQLConfig": "pg_admix",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 630,
+        "y": 200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "pg_admix",
+        "type": "postgreSQLConfig",
+        "name": "ADMIX-ERP DB",
+        "host": "127.0.0.1",
+        "hostFieldType": "str",
+        "port": "5432",
+        "portFieldType": "num",
+        "database": "admix_erp",
+        "databaseFieldType": "str",
+        "ssl": false,
+        "sslFieldType": "bool",
+        "applicationName": "node-red-scada",
+        "applicationNameType": "str",
+        "max": 10,
+        "maxFieldType": "num",
+        "idle": 1000,
+        "idleFieldType": "num",
+        "connectionTimeout": 10000,
+        "connectionTimeoutType": "num",
+        "user": "admix",
+        "userFieldType": "str",
+        "password": "REPLACE_ME",
+        "passwordFieldType": "str"
+    },
+    {
+        "id": "check_batch_complete",
+        "type": "function",
+        "z": "tab_main",
+        "name": "On batch complete",
+        "func": "// Watch for CIP_CLEAN transition — batch complete\nconst d = msg.payload;\nconst prev = flow.get('prev_state') || 0;\nflow.set('prev_state', d.batch_state);\n\n// CIP_CLEAN reached and prev was DISCHARGE → batch complete\nif (d.batch_state === 12 && prev === 11) {\n    // Fetch batch payload from flow context (accumulated during dosing)\n    const batch = flow.get('current_batch') || {};\n    batch.completed_at = d.timestamp;\n    batch.actual_kg = d.r01_kg;\n    msg.payload = batch;\n    return msg;\n}\nreturn null;",
+        "outputs": 1,
+        "x": 380,
+        "y": 340,
+        "wires": [
+            [
+                "post_to_admix"
+            ]
+        ]
+    },
+    {
+        "id": "post_to_admix",
+        "type": "http request",
+        "z": "tab_main",
+        "name": "POST ADMIX-ERP",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://127.0.0.1:8000/api/v1/production/batches/from-scada/",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [
+            {
+                "keyType": "other",
+                "keyValue": "Authorization",
+                "valueType": "other",
+                "valueValue": "Token REPLACE_ME"
+            }
+        ],
+        "x": 630,
+        "y": 340,
+        "wires": [
+            [
+                "log_erp_response"
+            ]
+        ]
+    },
+    {
+        "id": "log_erp_response",
+        "type": "debug",
+        "z": "tab_main",
+        "name": "ERP response",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 840,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "btn_start",
+        "type": "ui_button",
+        "z": "tab_main",
+        "name": "Batch Start button",
+        "group": "grp_ctrl",
+        "order": 1,
+        "width": 4,
+        "height": 2,
+        "passthru": false,
+        "label": "▶ BAŞLAT",
+        "tooltip": "Batch başlatma komutu",
+        "color": "#ffffff",
+        "bgcolor": "#385A3F",
+        "className": "",
+        "icon": "",
+        "payload": "true",
+        "payloadType": "bool",
+        "topic": "batch/start",
+        "topicType": "str",
+        "x": 130,
+        "y": 400,
+        "wires": [
+            [
+                "write_start_coil"
+            ]
+        ]
+    },
+    {
+        "id": "btn_stop",
+        "type": "ui_button",
+        "z": "tab_main",
+        "name": "Batch Stop button",
+        "group": "grp_ctrl",
+        "order": 2,
+        "width": 4,
+        "height": 2,
+        "passthru": false,
+        "label": "■ DURDUR",
+        "color": "#ffffff",
+        "bgcolor": "#7A2E2E",
+        "payload": "true",
+        "payloadType": "bool",
+        "topic": "batch/stop",
+        "topicType": "str",
+        "x": 130,
+        "y": 460,
+        "wires": [
+            [
+                "write_stop_coil"
+            ]
+        ]
+    },
+    {
+        "id": "write_start_coil",
+        "type": "modbus-write",
+        "z": "tab_main",
+        "name": "Write coil 00001",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "1",
+        "quantity": "1",
+        "server": "modbus_server_plc",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 380,
+        "y": 400,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "write_stop_coil",
+        "type": "modbus-write",
+        "z": "tab_main",
+        "name": "Write coil 00002",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "2",
+        "quantity": "1",
+        "server": "modbus_server_plc",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 380,
+        "y": 460,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "grp_reactor",
+        "type": "ui_group",
+        "name": "Reaktör R-01",
+        "tab": "dash_main",
+        "order": 1,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "grp_qc",
+        "type": "ui_group",
+        "name": "Kalite Ölçümler",
+        "tab": "dash_main",
+        "order": 2,
+        "disp": true,
+        "width": 12,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "grp_batch",
+        "type": "ui_group",
+        "name": "Batch",
+        "tab": "dash_main",
+        "order": 3,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "grp_trend",
+        "type": "ui_group",
+        "name": "Canlı Trend",
+        "tab": "dash_main",
+        "order": 4,
+        "disp": true,
+        "width": 12,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "grp_ctrl",
+        "type": "ui_group",
+        "name": "Kontrol",
+        "tab": "dash_main",
+        "order": 5,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "dash_main",
+        "type": "ui_tab",
+        "name": "Ana Ekran",
+        "icon": "dashboard",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    }
+]

@@ -49,6 +49,10 @@ _extracted/
 # Ekran görüntüleri (dev sırasında üretilen)
 admix_erp/_screenshots/
 
+# UsineERP referans fotoları (3rd party, git'e girmez)
+photos/
+photos_jpg/
+
 # Ortam değişkenleri (secrets)
 .env
 .env.local

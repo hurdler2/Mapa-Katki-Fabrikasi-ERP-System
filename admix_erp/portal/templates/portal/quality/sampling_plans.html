@@ -1,0 +1,68 @@
+{% extends "portal/_base.html" %}
+{% block title %}Örnekleme Planları · Kalite{% endblock %}
+{% block topbar %}Plans d'échantillonnage{% endblock %}
+{% block sidebar %}{% include "portal/quality/_sidebar.html" %}{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div>
+      <h2 style="margin:0">Örnekleme Planları</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        Hangi Gate'te, hangi tetikleyicide, hangi sıklıkta numune alınacağını tanımlar. BR-QA-12: pasifleştirme sebep gerektirir.
+      </div>
+    </div>
+    <a href="/admin/quality/samplingplan/add/" class="btn btn-primary">+ Yeni Plan</a>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:12px">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Kod</th>
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Hedef</th>
+        <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Gate</th>
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Tetikleyici</th>
+        <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Sıklık</th>
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Numune Boyutu</th>
+        <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Durum</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in plans %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px;font-family:monospace;font-weight:600">{{ p.code }}</td>
+        <td style="padding:10px">
+          {% if p.product %}
+            <b>{{ p.product.code }}</b> · {{ p.product.name }}
+          {% else %}
+            <b>{{ p.raw_material.code }}</b> · {{ p.raw_material.name }}
+          {% endif %}
+        </td>
+        <td style="padding:10px;text-align:center">
+          {% if p.gate == 'A' %}<span style="background:#DBEAFE;color:#1E40AF;padding:3px 10px;border-radius:12px;font-weight:600">A</span>
+          {% elif p.gate == 'B' %}<span style="background:#FEF3C7;color:#92400E;padding:3px 10px;border-radius:12px;font-weight:600">B</span>
+          {% else %}<span style="background:#DCFCE7;color:#166534;padding:3px 10px;border-radius:12px;font-weight:600">C</span>{% endif %}
+        </td>
+        <td style="padding:10px;font-size:13px">{{ p.get_trigger_display }}</td>
+        <td style="padding:10px;text-align:center;font-family:monospace">1/{{ p.frequency_n }}</td>
+        <td style="padding:10px;font-size:12px;color:var(--text-muted)">{{ p.sample_size_rule }}</td>
+        <td style="padding:10px;text-align:center">
+          {% if p.is_active %}
+            <span style="color:#16A34A;font-weight:600">● Aktif</span>
+          {% else %}
+            <span style="color:var(--text-muted)">○ Pasif</span>
+            {% if p.deactivation_reason %}
+            <div style="font-size:10px;color:var(--text-muted);max-width:150px;margin-top:2px">{{ p.deactivation_reason|truncatechars:40 }}</div>
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted)">
+        Henüz örnekleme planı tanımlanmamış.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

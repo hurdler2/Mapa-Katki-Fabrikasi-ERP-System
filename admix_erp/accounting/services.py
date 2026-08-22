@@ -36,6 +36,59 @@ ZERO = Decimal("0")
 # Dönem yardımcıları
 # ---------------------------------------------------------------------------
 
+def allocate_advance_to_invoice(
+    advance,
+    invoice,
+    amount: Decimal,
+    allocation_date: dt.date | None = None,
+):
+    """Bir müşteri avansını (§23) bir faturaya tahsis eder.
+
+    Kurallar:
+    - Aynı müşteri olmalı
+    - Amount pozitif ve avansın kalanını aşmamalı
+    - Faturaya tahsis edilen tutar `amount_paid`'e eklenir
+    - Fatura durumu güncellenir (PARTIALLY_PAID / PAID)
+    - Avansın kalanı 0 olursa FULLY_ALLOCATED
+    """
+    from django.core.exceptions import ValidationError
+    from django.db import transaction
+
+    from .models import AdvanceAllocation, CustomerAdvance, Invoice
+
+    amount = Decimal(amount)
+    allocation_date = allocation_date or dt.date.today()
+
+    if amount <= 0:
+        raise ValidationError("Tahsis tutarı pozitif olmalı.")
+
+    with transaction.atomic():
+        alloc = AdvanceAllocation(
+            advance=advance,
+            invoice=invoice,
+            amount=amount,
+            date=allocation_date,
+        )
+        alloc.full_clean()  # BR-QA-... kısıtları
+        alloc.save()
+
+        # Faturanın ödenen tutarını güncelle
+        invoice.amount_paid = (invoice.amount_paid or Decimal("0")) + amount
+        if invoice.amount_paid >= (invoice.total_ttc or Decimal("0")):
+            invoice.status = Invoice.Status.PAID
+        elif invoice.amount_paid > 0:
+            invoice.status = Invoice.Status.PARTIALLY_PAID
+        invoice.save(update_fields=["amount_paid", "status", "updated_at"])
+
+        # Avansın kalanı 0 ise FULLY_ALLOCATED
+        remaining = advance.remaining_amount
+        if remaining <= Decimal("0.005"):
+            advance.status = CustomerAdvance.Status.FULLY_ALLOCATED
+            advance.save(update_fields=["status", "updated_at"])
+
+    return alloc
+
+
 def get_or_create_period(date: dt.date) -> Period:
     """Verilen tarih için Period nesnesi (yoksa oluştur — mali yıl varsa)."""
     fy = FiscalYear.objects.filter(

@@ -1,0 +1,22 @@
+<div class="menu-group">Kalite / Laboratuvar</div>
+<a class="menu-item {% if current == 'home' %}active{% endif %}" href="{% url 'portal:quality' %}">
+  <span class="icon">🔬</span> Ana Ekran
+</a>
+<a class="menu-item {% if current == 'catalog' %}active{% endif %}" href="{% url 'portal:quality_catalog' %}">
+  <span class="icon">📚</span> Özellik / Test Kataloğu
+</a>
+<a class="menu-item {% if current == 'specs' %}active{% endif %}" href="{% url 'portal:quality_specs' %}">
+  <span class="icon">📋</span> Şartnameler (Spécifications)
+</a>
+<a class="menu-item {% if current == 'plans' %}active{% endif %}" href="{% url 'portal:sampling_plans' %}">
+  <span class="icon">🎯</span> Örnekleme Planları
+</a>
+<a class="menu-item" href="/admin/quality/qctestresult/">
+  <span class="icon">🧪</span> Test Sonuçları
+</a>
+<a class="menu-item" href="/admin/quality/certificateofanalysis/">
+  <span class="icon">📜</span> COA'lar
+</a>
+<a class="menu-item" href="/admin/qms/nonconformance/">
+  <span class="icon">⚠️</span> Uygunsuzluk (NCR)
+</a>

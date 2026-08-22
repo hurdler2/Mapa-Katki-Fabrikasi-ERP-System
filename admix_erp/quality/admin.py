@@ -2,7 +2,7 @@ from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.utils.html import format_html
 
-from .models import CertificateOfAnalysis, QCParameter, QCSpec, QCTestResult
+from .models import CertificateOfAnalysis, QCParameter, QCSpec, QCTestResult, SamplingPlan
 from .services import (
     coa_payload,
     generate_coa,
@@ -16,16 +16,79 @@ from .services import (
 
 @admin.register(QCParameter)
 class QCParameterAdmin(admin.ModelAdmin):
-    list_display = ("code", "name", "unit", "method", "is_active")
+    list_display = ("code", "name", "unit", "method", "decimal_precision", "is_active")
     list_filter = ("method", "is_active")
     search_fields = ("code", "name")
 
 
 @admin.register(QCSpec)
 class QCSpecAdmin(admin.ModelAdmin):
-    list_display = ("parameter", "product", "raw_material", "min_value", "max_value", "target_value", "is_mandatory")
-    list_filter = ("parameter", "is_mandatory")
-    autocomplete_fields = ("parameter", "product", "raw_material")
+    list_display = (
+        "parameter", "product", "raw_material", "version",
+        "min_value", "max_value", "tolerance_pct",
+        "gates_display", "is_critical",
+        "is_active", "approved_by",
+    )
+    list_filter = (
+        "parameter", "is_active", "is_critical",
+        "check_at_gate_a", "check_at_gate_b", "check_at_gate_c",
+    )
+    autocomplete_fields = ("parameter", "product", "raw_material", "created_by", "approved_by")
+    readonly_fields = ("approved_at",)
+    fieldsets = (
+        (None, {"fields": ("parameter", ("product", "raw_material"))}),
+        ("Değerler", {"fields": (
+            ("min_value", "max_value", "target_value", "tolerance_pct"),
+            ("is_mandatory", "is_critical"),
+        )}),
+        ("Per-Gate kontrol", {"fields": (
+            ("check_at_gate_a", "check_at_gate_b", "check_at_gate_c"),
+        )}),
+        ("Versiyonlama + QA onayı", {"fields": (
+            ("version", "effective_date", "is_active"),
+            ("created_by", "approved_by", "approved_at"),
+        )}),
+    )
+
+    @admin.display(description="Gates")
+    def gates_display(self, obj: QCSpec) -> str:
+        g = []
+        if obj.check_at_gate_a: g.append("A")
+        if obj.check_at_gate_b: g.append("B")
+        if obj.check_at_gate_c: g.append("C")
+        return " · ".join(g) if g else "—"
+
+    def save_model(self, request, obj, form, change):
+        if obj.is_active and obj.approved_by and obj.approved_at is None:
+            from django.utils import timezone
+            obj.approved_at = timezone.now()
+        if not obj.created_by_id:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(SamplingPlan)
+class SamplingPlanAdmin(admin.ModelAdmin):
+    list_display = (
+        "code", "name", "product", "raw_material",
+        "gate", "trigger", "frequency_n", "is_active",
+    )
+    list_filter = ("gate", "trigger", "is_active")
+    search_fields = ("code", "name")
+    autocomplete_fields = ("product", "raw_material")
+    fieldsets = (
+        (None, {"fields": (("code", "name"),)}),
+        ("Uygulama alanı", {"fields": (("raw_material", "product"),)}),
+        ("Kontrol noktası", {"fields": (
+            ("gate", "trigger"),
+            ("frequency_n", "sample_size_rule"),
+        )}),
+        ("Durum (BR-QA-12)", {"fields": (
+            ("is_active",),
+            "deactivation_reason",
+            "notes",
+        )}),
+    )
 
 
 @admin.register(QCTestResult)

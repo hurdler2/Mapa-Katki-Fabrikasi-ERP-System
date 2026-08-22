@@ -1,0 +1,40 @@
+// ============================================================
+// UDT: Recipe — Reçete veri yapısı
+// TIA Portal V19 · S7-1215C
+// Bu UDT, DB_Recipe için tip tanımıdır ve HMI'ye taşınır.
+// ============================================================
+
+TYPE "Recipe"
+VERSION : 0.1
+   STRUCT
+      code : String[20];             // Reçete kodu (ör. "ADX-100-v3")
+      version : Int;                 // Versiyon numarası
+      is_active : Bool;              // Aktif reçete mi
+
+      // — Hedef ağırlıklar (kg) —
+      batch_target_kg : Real;        // Toplam batch hedefi
+      water_kg : Real;               // Su
+      rm1_kg : Real;                 // Hammadde 1
+      rm2_kg : Real;                 // Hammadde 2
+      rm3_kg : Real;                 // Hammadde 3
+      rm4_kg : Real;                 // Hammadde 4
+      rm5_kg : Real;                 // Hammadde 5
+
+      // — Toleranslar —
+      tolerance_pct : Real;          // Ör. 0.5 (±%)
+
+      // — Karıştırma parametreleri —
+      mix_time_sec : Int;            // Karıştırma süresi
+      mix_speed_pct : Int;           // VFD hız yüzdesi
+
+      // — Kalite hedefleri (BR-QA-05) —
+      target_ph_min : Real;
+      target_ph_max : Real;
+      target_temp_max : Real;
+      target_cl_max : Real;
+
+      // — Coarse/Fine dozajlama offset —
+      overshoot_kg : Real;           // Pompa kapanınca düşecek miktar
+      fine_speed_pct : Real;         // Fine aşamada pompa hızı (%)
+   END_STRUCT;
+END_TYPE

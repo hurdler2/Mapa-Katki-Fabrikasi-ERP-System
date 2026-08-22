@@ -1,0 +1,54 @@
+{% extends "portal/_base.html" %}
+{% block title %}DoP · CE Marking{% endblock %}
+{% block topbar %}Déclaration de Performance (DoP) · CE Marking{% endblock %}
+{% block sidebar %}{% include "portal/compliance/_sidebar.html" %}{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div>
+      <h2 style="margin:0">Declaration of Performance</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        EU 305/2011 Annex III — CE Marking için ürün başına DoP. EN 934-2 System 2+.
+      </div>
+    </div>
+    <a href="/admin/chemicals/declarationofperformance/add/" class="btn btn-primary">+ Yeni DoP</a>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">DoP No</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Ürün</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Kullanım</th>
+        <th style="text-align:center;padding:10px;font-size:12px;color:var(--text-muted)">v</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Yayım</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">NB</th>
+        <th style="text-align:center;padding:10px;font-size:12px;color:var(--text-muted)">Durum</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in dops %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px;font-family:monospace;font-weight:600">{{ d.dop_number }}</td>
+        <td style="padding:10px"><b>{{ d.product.code }}</b> · {{ d.product.name|truncatechars:24 }}</td>
+        <td style="padding:10px;font-size:12px">{{ d.intended_use|truncatechars:36 }}</td>
+        <td style="padding:10px;text-align:center;font-family:monospace">v{{ d.version }}</td>
+        <td style="padding:10px">{{ d.issue_date }}</td>
+        <td style="padding:10px;font-size:12px">
+          {% if d.coc.issuing_body %}NB {{ d.coc.issuing_body.number }}{% else %}—{% endif %}
+        </td>
+        <td style="padding:10px;text-align:center">
+          {% if d.status == 'ISSUED' %}<span style="background:#DCFCE7;color:#166534;padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600">Yayımlandı</span>
+          {% else %}<span style="background:#FEF3C7;color:#92400E;padding:3px 8px;border-radius:8px;font-size:11px">{{ d.get_status_display }}</span>{% endif %}
+        </td>
+        <td style="padding:10px"><a href="{% url 'portal:dop_pdf' d.pk %}" target="_blank" class="btn btn-outline" style="padding:4px 10px;font-size:12px">📄 CE PDF</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-muted)">DoP yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

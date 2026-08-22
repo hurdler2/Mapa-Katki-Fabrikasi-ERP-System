@@ -1,0 +1,195 @@
+// ============================================================
+// FB: BatchSequencer — Ana batch state machine
+// TIA Portal V19 · S7-1215C
+//
+// State list (13 durum):
+//   0  IDLE           — Sistem hazır
+//   1  RECIPE_LOAD    — Reçete yükleniyor
+//   2  PRECHECK       — Stok/reaktör kontrolü
+//   3  WATER_FILL     — Su dozajı
+//   4  DOSE_RM1       — Hammadde 1 dozaj
+//   5  DOSE_RM2       — Hammadde 2 dozaj
+//   6  DOSE_RM3       — Hammadde 3 dozaj
+//   7  DOSE_RM4       — Hammadde 4 dozaj
+//   8  DOSE_RM5       — Hammadde 5 dozaj
+//   9  MIXING         — Karıştırma
+//  10  QC_SAMPLE      — Kalite ölçüm
+//  11  DISCHARGE      — Ürün boşaltım
+//  12  CIP_CLEAN      — Temizlik
+//  99  ABORTED        — Hata / iptal
+// ============================================================
+
+FUNCTION_BLOCK "FB_BatchSequencer"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR_INPUT
+      Start_cmd : Bool;               // HS_PANEL_START
+      Stop_cmd : Bool;                // HS_PANEL_STOP
+      Reset_cmd : Bool;               // HS_PANEL_RESET
+      ESTOP_active : Bool;            // Acil durdurma
+      Interlock_OK : Bool;            // Emniyet interlock durumu
+      Auto_mode : Bool;               // AUTO/MAN seçici
+   END_VAR
+
+   VAR_OUTPUT
+      State : Int;                    // Aktif state (0..99)
+      State_text : String[24];        // HMI için okunabilir
+      Batch_running : Bool;
+      Batch_complete : Bool;
+      Batch_number : String[20];      // "BATCH-YYYYMMDD-NNN"
+   END_VAR
+
+   VAR
+      // — Timer'lar —
+      mix_timer : IEC_TIMER;
+      settle_timer : IEC_TIMER;
+      qc_timer : IEC_TIMER;
+
+      // — Dozaj bitirdi bayrakları —
+      water_done : Bool;
+      rm1_done : Bool;
+      rm2_done : Bool;
+      rm3_done : Bool;
+      rm4_done : Bool;
+      rm5_done : Bool;
+
+      // — Iç sayaçlar —
+      state_prev : Int;
+      state_entry_time : Time;
+      batch_counter : DInt;
+   END_VAR
+BEGIN
+
+   // ═══════════════════════════════════════════════════════════
+   // 1. GLOBAL ABORT — E-Stop ya da Interlock kaybı = anında ABORT
+   // ═══════════════════════════════════════════════════════════
+   IF ESTOP_active OR NOT Interlock_OK THEN
+      #State := 99;   // ABORTED
+   END_IF;
+
+   // Reset komutu ile IDLE'a dön
+   IF (#State = 99 OR #State = 12) AND #Reset_cmd THEN
+      #State := 0;
+   END_IF;
+
+   // ═══════════════════════════════════════════════════════════
+   // 2. STATE MACHINE
+   // ═══════════════════════════════════════════════════════════
+   CASE #State OF
+
+      // ────────── 0: IDLE ──────────
+      0:
+         #State_text := 'IDLE - Hazir';
+         #Batch_running := FALSE;
+         #Batch_complete := FALSE;
+
+         // Operatör "Start" bastı ve mod AUTO ise → RECIPE_LOAD
+         IF #Start_cmd AND #Auto_mode AND NOT #ESTOP_active THEN
+            #State := 1;
+            #batch_counter := #batch_counter + 1;
+            // Batch numarası oluştur (HMI'de tarih ile birleştirilir)
+            #Batch_number := CONCAT(IN1 := 'BATCH-', IN2 := DINT_TO_STRING(#batch_counter));
+         END_IF;
+
+      // ────────── 1: RECIPE_LOAD ──────────
+      1:
+         #State_text := 'RECIPE_LOAD';
+         // Bu adımda HMI'den reçete seçilir. "DB_Recipe.is_active" beklenir.
+         IF "DB_Recipe".is_active THEN
+            #State := 2;
+         END_IF;
+         IF #Stop_cmd THEN #State := 0; END_IF;
+
+      // ────────── 2: PRECHECK ──────────
+      2:
+         #State_text := 'PRECHECK';
+         // Stok yeterli mi? Reaktör boş mu?
+         IF ("DB_Weights".t01_kg >= "DB_Recipe".rm1_kg + 10.0)
+            AND ("DB_Weights".t02_kg >= "DB_Recipe".rm2_kg + 10.0)
+            AND ("DB_Weights".t03_kg >= "DB_Recipe".rm3_kg + 5.0)
+            AND ("DB_Weights".t04_kg >= "DB_Recipe".rm4_kg + 5.0)
+            AND ("DB_Weights".t05_kg >= "DB_Recipe".rm5_kg + 5.0)
+            AND ("DB_Weights".t06_water_kg >= "DB_Recipe".water_kg + 20.0)
+            AND ("DB_Weights".r01_kg <= 50.0)
+         THEN
+            #State := 3;
+            #Batch_running := TRUE;
+         ELSE
+            #State := 99; // Yeterli stok yok
+         END_IF;
+
+      // ────────── 3: WATER_FILL ──────────
+      3:
+         #State_text := 'WATER_FILL';
+         // Su dozajlaması FB_DoseController tarafından yönetilir
+         IF #water_done THEN #State := 4; END_IF;
+
+      // ────────── 4-8: DOSE_RM1..RM5 ──────────
+      4:
+         #State_text := 'DOSE_RM1';
+         IF #rm1_done THEN #State := 5; END_IF;
+      5:
+         #State_text := 'DOSE_RM2';
+         IF #rm2_done THEN #State := 6; END_IF;
+      6:
+         #State_text := 'DOSE_RM3';
+         IF #rm3_done THEN #State := 7; END_IF;
+      7:
+         #State_text := 'DOSE_RM4';
+         IF #rm4_done THEN #State := 8; END_IF;
+      8:
+         #State_text := 'DOSE_RM5';
+         IF #rm5_done THEN #State := 9; END_IF;
+
+      // ────────── 9: MIXING ──────────
+      9:
+         #State_text := 'MIXING';
+         // Mixer'i çalıştır (DB_Mixer.run_cmd = TRUE HMI'ye taşınır)
+         // Timer başlat
+         #mix_timer(IN := TRUE, PT := INT_TO_TIME(#mix_time_sec_out * 1000));
+         IF #mix_timer.Q THEN
+            #State := 10;
+            #mix_timer(IN := FALSE);
+         END_IF;
+
+      // ────────── 10: QC_SAMPLE ──────────
+      10:
+         #State_text := 'QC_SAMPLE';
+         // QC monitörü sonuçlarını değerlendir
+         #qc_timer(IN := TRUE, PT := T#5S);
+         IF #qc_timer.Q THEN
+            IF "DB_QC".ph_pass AND "DB_QC".temp_pass AND "DB_QC".cl_pass THEN
+               #State := 11; // OK → boşalt
+            ELSE
+               #State := 99; // QC fail → HOLD (operatör kararına bırak)
+            END_IF;
+            #qc_timer(IN := FALSE);
+         END_IF;
+
+      // ────────── 11: DISCHARGE ──────────
+      11:
+         #State_text := 'DISCHARGE';
+         // Boşaltım vanası aç, load cell 0'a düşene kadar bekle
+         IF "DB_Weights".r01_kg <= 20.0 THEN
+            #State := 12;
+         END_IF;
+
+      // ────────── 12: CIP_CLEAN ──────────
+      12:
+         #State_text := 'CIP_CLEAN';
+         // Temizlik döngüsü (opsiyonel — manuel de olabilir)
+         IF #Reset_cmd THEN
+            #State := 0;
+            #Batch_running := FALSE;
+            #Batch_complete := TRUE;
+         END_IF;
+
+      // ────────── 99: ABORTED ──────────
+      99:
+         #State_text := 'ABORTED';
+         #Batch_running := FALSE;
+         // Operatör Reset'e basmadan çıkılamaz
+   END_CASE;
+
+END_FUNCTION_BLOCK

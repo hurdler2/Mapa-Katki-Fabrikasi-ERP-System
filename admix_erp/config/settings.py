@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     # 3rd party
     "simple_history",
     "rest_framework",
+    "rest_framework.authtoken",
     "rest_framework_simplejwt",
     "django_filters",
     # yerel app'ler
@@ -91,6 +92,7 @@ MCOS_ENABLE_RULES_ENFORCER = os.environ.get(
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (

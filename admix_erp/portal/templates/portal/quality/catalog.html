@@ -1,0 +1,45 @@
+{% extends "portal/_base.html" %}
+{% block title %}Özellik / Test Kataloğu · Kalite{% endblock %}
+{% block topbar %}Catalogue Propriétés / Tests{% endblock %}
+{% block sidebar %}{% include "portal/quality/_sidebar.html" %}{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div>
+      <h2 style="margin:0">Özellik / Test Kataloğu</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        Şartnamelerde kullanılan tüm parametreler — birim, yöntem, ondalık hane.
+      </div>
+    </div>
+    <a href="/admin/quality/qcparameter/add/" class="btn btn-primary">+ Yeni Özellik</a>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:12px">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Kod</th>
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Özellik</th>
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Birim</th>
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Yöntem</th>
+        <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Ondalık</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in params %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px;font-family:monospace;font-weight:600">{{ p.code }}</td>
+        <td style="padding:10px">{{ p.name }}</td>
+        <td style="padding:10px;color:var(--text-muted)">{{ p.unit|default:"—" }}</td>
+        <td style="padding:10px;font-size:12px">{{ p.get_method_display }}</td>
+        <td style="padding:10px;text-align:center;font-family:monospace">{{ p.decimal_precision }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-muted)">
+        Henüz özellik tanımlanmamış.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

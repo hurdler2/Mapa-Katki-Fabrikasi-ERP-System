@@ -254,3 +254,167 @@ def render_work_permit_pdf(permit) -> bytes:
     pdf = buf.getvalue()
     buf.close()
     return pdf
+
+
+# ---------------------------------------------------------------------------
+# Sprint 9 — SDS (16 bölüm) ve DoP (EN 934-2) PDF üreteçleri
+# ---------------------------------------------------------------------------
+
+SDS_SECTIONS = [
+    ("1. Identification / Kimlik", "section_1_identification"),
+    ("2. Hazard identification / Tehlike tanımlaması", "section_2_hazards"),
+    ("3. Composition / Bileşim ve bileşenler", "section_3_composition"),
+    ("4. First-aid measures / İlk yardım", "section_4_first_aid"),
+    ("5. Fire-fighting / Yangınla mücadele", "section_5_fire"),
+    ("6. Accidental release / Kaza sonucu yayılma", "section_6_accidental"),
+    ("7. Handling and storage / Elleçleme ve depolama", "section_7_handling"),
+    ("8. Exposure controls / PPE / Maruziyet kontrolleri", "section_8_exposure"),
+    ("9. Physical and chemical properties", "section_9_physical"),
+    ("10. Stability and reactivity", "section_10_stability"),
+    ("11. Toxicological information", "section_11_toxicological"),
+    ("12. Ecological information", "section_12_ecological"),
+    ("13. Disposal considerations", "section_13_disposal"),
+    ("14. Transport information (ADR/RID/IMDG/IATA)", "section_14_transport"),
+    ("15. Regulatory information (REACH, CLP, ...)", "section_15_regulatory"),
+    ("16. Other information", "section_16_other"),
+]
+
+
+def render_sds_pdf(sds) -> bytes:
+    """SDS 16-bölüm PDF — Regulation EU 2020/878 uyumlu format."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=1.5*cm, rightMargin=1.5*cm,
+        topMargin=1.2*cm, bottomMargin=1.2*cm,
+    )
+    st = _styles()
+    story = []
+
+    story.append(Paragraph(
+        f"<b>SAFETY DATA SHEET</b> — SDS N° {sds.sds_number}", st["h1"],
+    ))
+    story.append(Paragraph(
+        f"Version: {sds.version} · Language: {sds.language.upper()} · "
+        f"Issue: {sds.issue_date or '—'} · Revision: {sds.revision_date or '—'}",
+        st["body"],
+    ))
+    story.append(Paragraph(
+        f"Chemical profile: <b>{sds.profile}</b>",
+        st["body"],
+    ))
+    story.append(Spacer(1, 0.4*cm))
+
+    story.append(Paragraph(
+        "According to Regulation (EC) No 1907/2006 (REACH) and (EU) 2020/878.",
+        st["small"],
+    ))
+    story.append(Spacer(1, 0.3*cm))
+
+    for title, field in SDS_SECTIONS:
+        story.append(Paragraph(f"<b>{title}</b>", st["h2"]))
+        content = getattr(sds, field, "") or "<i>[not filled]</i>"
+        story.append(Paragraph(content.replace("\n", "<br/>"), st["body"]))
+        story.append(Spacer(1, 0.15*cm))
+
+    story.append(Spacer(1, 0.5*cm))
+    story.append(Paragraph(
+        f"Prepared by: {sds.prepared_by or '—'} · "
+        f"Approved by: {sds.approved_by or '—'} · "
+        f"Status: {sds.get_status_display()}",
+        st["small"],
+    ))
+    story.append(Paragraph(
+        "This SDS is compliant with GHS/CLP and EU Regulation 2020/878.",
+        st["small"],
+    ))
+
+    doc.build(story)
+    pdf = buf.getvalue()
+    buf.close()
+    return pdf
+
+
+def render_dop_pdf(dop) -> bytes:
+    """DoP — Declaration of Performance (EU Regulation 305/2011 Annex III)."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=1.5*cm, rightMargin=1.5*cm,
+        topMargin=1.2*cm, bottomMargin=1.5*cm,
+    )
+    st = _styles()
+    story = []
+
+    story.append(Paragraph("<b>DECLARATION OF PERFORMANCE</b>", st["h1"]))
+    story.append(Paragraph(f"N° {dop.dop_number}", st["h2"]))
+    story.append(Spacer(1, 0.3*cm))
+
+    story.append(Paragraph("<b>1. Unique identification code of the product-type</b>", st["h2"]))
+    story.append(Paragraph(f"{dop.product.code} · {dop.product.name}", st["body"]))
+
+    story.append(Paragraph("<b>2. Type, batch or serial number</b>", st["h2"]))
+    story.append(Paragraph(dop.product.code, st["body"]))
+
+    story.append(Paragraph("<b>3. Intended use of the construction product</b>", st["h2"]))
+    story.append(Paragraph(dop.intended_use or "—", st["body"]))
+
+    story.append(Paragraph("<b>4. Manufacturer</b>", st["h2"]))
+    story.append(Paragraph(
+        "SARL MAPA ALGÉRIE<br/>Zone industrielle Rouiba, Alger — Algérie<br/>info@mapa.dz",
+        st["body"],
+    ))
+
+    story.append(Paragraph("<b>5. Authorised representative</b>", st["h2"]))
+    story.append(Paragraph("—", st["body"]))
+
+    story.append(Paragraph("<b>6. AVCP system(s)</b>", st["h2"]))
+    if dop.coc and dop.coc.fpc_plan:
+        story.append(Paragraph(
+            f"System {dop.coc.fpc_plan.get_avcp_system_display()}", st["body"],
+        ))
+    else:
+        story.append(Paragraph("System 2+", st["body"]))
+
+    story.append(Paragraph("<b>7. Harmonised standard</b>", st["h2"]))
+    story.append(Paragraph(
+        (dop.coc.standard if dop.coc else "EN 934-2:2009+A1:2012"), st["body"],
+    ))
+
+    story.append(Paragraph("<b>8. Notified body</b>", st["h2"]))
+    if dop.coc and dop.coc.issuing_body:
+        nb = dop.coc.issuing_body
+        story.append(Paragraph(f"NB {nb.number} — {nb.name} ({nb.country})", st["body"]))
+    else:
+        story.append(Paragraph("—", st["body"]))
+
+    story.append(Paragraph("<b>9. Declared performance</b>", st["h2"]))
+    rows = [["Essential characteristic", "Declared performance"]]
+    for k, v in (dop.performance_data or {}).items():
+        rows.append([k.replace("_", " ").title(), str(v)])
+    if len(rows) > 1:
+        story.append(_table(rows, col_widths=[9*cm, 8*cm]))
+    else:
+        story.append(Paragraph("[no performance data]", st["small"]))
+
+    story.append(Spacer(1, 0.6*cm))
+    story.append(Paragraph("<b>10. Signature</b>", st["h2"]))
+    story.append(Paragraph(
+        f"The performance of the product identified above is in conformity with "
+        f"the declared performance.<br/><br/>"
+        f"Signed for and on behalf of the manufacturer by:<br/>"
+        f"<b>{dop.manufacturer_signatory}</b><br/><br/>"
+        f"Place: Rouiba, Alger — Date: {dop.issue_date}",
+        st["body"],
+    ))
+
+    story.append(Spacer(1, 0.4*cm))
+    story.append(Paragraph(
+        "Regulation (EU) No 305/2011 — CPR Annex III · CE Marking",
+        st["small"],
+    ))
+
+    doc.build(story)
+    pdf = buf.getvalue()
+    buf.close()
+    return pdf

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import RawMaterialLot, StockMovement
+from .models import RawMaterialLot, StockAdjustment, StockMovement
 
 
 @admin.register(RawMaterialLot)
@@ -35,3 +35,22 @@ class StockMovementAdmin(admin.ModelAdmin):
     list_filter = ("movement_type",)
     search_fields = ("lot__lot_number", "reference")
     date_hierarchy = "timestamp"
+
+
+@admin.register(StockAdjustment)
+class StockAdjustmentAdmin(admin.ModelAdmin):
+    list_display = (
+        "adjustment_number", "lot", "adjustment_type",
+        "qty_before", "qty_after", "delta_c",
+        "performed_by", "performed_at",
+    )
+    list_filter = ("adjustment_type", "performed_at")
+    search_fields = ("adjustment_number", "lot__lot_number", "reason", "document_ref")
+    date_hierarchy = "performed_at"
+    autocomplete_fields = ("lot", "performed_by")
+    readonly_fields = ("delta", "movement")
+
+    @admin.display(description="Delta")
+    def delta_c(self, obj):
+        color = "#DC2626" if obj.delta < 0 else "#16A34A"
+        return format_html('<b style="color:{}">{}</b>', color, obj.delta)

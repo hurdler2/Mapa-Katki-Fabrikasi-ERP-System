@@ -1,0 +1,96 @@
+{% extends "portal/_base.html" %}
+{% block title %}Yeni Gider Faturası{% endblock %}
+{% block topbar %}Nouvelle Facture de Dépense{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Muhasebe</div>
+<a class="menu-item" href="{% url 'portal:accounting' %}"><span class="icon">💰</span> Muhasebe Panosu</a>
+<a class="menu-item active" href="{% url 'portal:expense_list' %}"><span class="icon">🧰</span> Gider Faturaları</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel" style="max-width:900px">
+  <h2 style="margin:0 0 6px 0">Nouvelle Facture de Dépense</h2>
+  <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px">
+    Bakım/tamir, kira, kütüphane, danışmanlık gibi işletme giderleri için.
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="stack">
+    {% csrf_token %}
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+      <div class="field">
+        <label>Fournisseur *</label>
+        <select name="supplier" required>
+          <option value="">— Seçiniz —</option>
+          {% for s in suppliers %}<option value="{{ s.pk }}">{{ s.code }} · {{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Catégorie *</label>
+        <select name="category" required>
+          {% for value, label in categories %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div class="field">
+        <label>Fatura tarihi *</label>
+        <input type="date" name="invoice_date" value="{{ today }}" required>
+      </div>
+      <div class="field">
+        <label>Vade tarihi</label>
+        <input type="date" name="due_date">
+      </div>
+      <div class="field">
+        <label>Fournisseur invoice n°</label>
+        <input type="text" name="supplier_invoice_number" placeholder="MECT-2026-4489">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Détails / Récapitulatif des travaux effectués *</label>
+      <textarea name="description" rows="3" required
+                placeholder="Ör. Réparation superplastifiant mixer R-101 — remplacement pompe centrifuge et calibrage capteurs."></textarea>
+    </div>
+
+    <div class="field">
+      <label>Ekipman / Yer referansı</label>
+      <input type="text" name="equipment_reference" placeholder="Réacteur R-101 / Ofis 2 / Silo #3">
+    </div>
+
+    <h3 style="margin-top:24px;color:var(--text-muted);font-size:13px;text-transform:uppercase;letter-spacing:0.06em">Tutar</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="field">
+        <label>Montant HT (DZD) *</label>
+        <input type="number" name="amount_ht" step="0.01" min="0" required
+               style="font-family:monospace;font-weight:600">
+      </div>
+      <div class="field">
+        <label>TVA Oranı *</label>
+        <select name="tva_rate" required>
+          {% for t in tva_rates %}<option value="{{ t.pk }}" {% if t.code == 'TVA19' %}selected{% endif %}>{{ t.name }} ({{ t.rate_pct }}%)</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <h3 style="margin-top:24px;color:var(--text-muted);font-size:13px;text-transform:uppercase;letter-spacing:0.06em">Justificatif</h3>
+    <div class="field">
+      <label>Fatura belgesi (PDF/JPG/PNG)</label>
+      <input type="file" name="proof_document" accept=".pdf,.jpg,.jpeg,.png"
+             style="padding:8px 10px;background:#FAFBFC;border:1px dashed var(--border-strong);border-radius:6px">
+    </div>
+
+    <div class="field">
+      <label>Notlar</label>
+      <textarea name="notes" rows="2"></textarea>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:20px">
+      <button type="submit" class="btn btn-primary">Kaydet (Taslak)</button>
+      <a href="{% url 'portal:expense_list' %}" class="btn btn-outline">İptal</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

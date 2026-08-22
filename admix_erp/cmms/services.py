@@ -322,3 +322,71 @@ def find_overdue_calibrations(*, as_of: dt.date | None = None) -> list[Calibrati
         next_due_date__isnull=False,
         next_due_date__lt=as_of,
     ).select_related("equipment"))
+
+
+# ---------------------------------------------------------------------------
+# Sprint 11 — SCADA sensor alert -> auto WorkOrder koprusu
+# ---------------------------------------------------------------------------
+
+from django.utils import timezone as _tz
+from .models import SensorAlert
+
+
+SEVERITY_TO_PRIORITY = {
+    SensorAlert.Severity.INFO: WorkOrder.Priority.LOW,
+    SensorAlert.Severity.WARNING: WorkOrder.Priority.MEDIUM,
+    SensorAlert.Severity.CRITICAL: WorkOrder.Priority.URGENT,
+}
+
+
+def _next_wo_number() -> str:
+    stamp = _tz.now().strftime("%Y%m%d%H%M%S")
+    return f"WO-AUTO-{stamp}"
+
+
+from django.db import transaction as _tx
+
+
+def _system_user():
+    from django.contrib.auth import get_user_model
+    U = get_user_model()
+    u, _ = U.objects.get_or_create(
+        username="scada_system",
+        defaults={"first_name": "SCADA", "last_name": "System"},
+    )
+    return u
+
+
+@_tx.atomic
+def create_work_order_from_alert(alert, requested_by=None):
+    """Kritik sensor alert icin otomatik WorkOrder ac."""
+    if alert.auto_work_order_id is not None:
+        return alert.auto_work_order
+
+    priority = SEVERITY_TO_PRIORITY.get(alert.severity, WorkOrder.Priority.MEDIUM)
+    title = f"[SCADA] {alert.sensor_tag} = {alert.measured_value} {alert.unit} ({alert.severity})"
+    description = (
+        f"Otomatik acildi - Sensor alert {alert.alert_number}.\n"
+        f"Sensor tag: {alert.sensor_tag}\n"
+        f"Parametre: {alert.parameter}\n"
+        f"Olcum: {alert.measured_value} {alert.unit}\n"
+    )
+    if alert.threshold_low is not None or alert.threshold_high is not None:
+        description += f"Esikler: [{alert.threshold_low or '-inf'} ... {alert.threshold_high or '+inf'}]\n"
+    if alert.notes:
+        description += f"\nNot: {alert.notes}"
+
+    wo = WorkOrder.objects.create(
+        work_order_number=_next_wo_number(),
+        type=WorkOrder.Type.CORRECTIVE,
+        priority=priority,
+        status=WorkOrder.Status.OPEN,
+        equipment=alert.equipment,
+        title=title[:200],
+        description=description,
+        requested_by=(requested_by or _system_user()),
+    )
+    alert.auto_work_order = wo
+    alert.status = SensorAlert.Status.WO_CREATED
+    alert.save(update_fields=["auto_work_order", "status", "updated_at"])
+    return wo

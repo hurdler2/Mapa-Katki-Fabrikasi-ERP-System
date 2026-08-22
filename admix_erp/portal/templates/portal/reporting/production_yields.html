@@ -1,0 +1,70 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}Rendements production{% endblock %}
+{% block topbar %}Rendements production — verim analizi{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Raporlar</div>
+<a class="menu-item" href="{% url 'portal:reporting_hub' %}"><span class="icon">📊</span> Rapor Merkezi</a>
+<a class="menu-item" href="{% url 'portal:report_aging_clients' %}"><span class="icon">⏳</span> Alacak Yaşlandırma</a>
+<a class="menu-item" href="{% url 'portal:report_stock_valuation' %}"><span class="icon">📦</span> Stok Değerleme</a>
+<a class="menu-item active" href="{% url 'portal:report_production_yields' %}"><span class="icon">⚙️</span> Üretim Verimi</a>
+<a class="menu-item" href="{% url 'portal:report_bl_invoice' %}"><span class="icon">🔗</span> BL-Fatura Eşleştirme</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Toplam Hedef</div>
+    <div class="value">{{ total_target|fr_short }}</div>
+    <div class="sub">kg · son 90 gün</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Toplam Gerçek</div>
+    <div class="value">{{ total_actual|fr_short }}</div>
+    <div class="sub">kg üretilen</div>
+  </div>
+  <div class="kpi {% if avg_yield >= 98 %}success{% elif avg_yield >= 95 %}warning{% else %}danger{% endif %}">
+    <div class="label">Ortalama Verim</div>
+    <div class="value">%{{ avg_yield|floatformat:2 }}</div>
+    <div class="sub">Gerçek / Hedef</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">Parti Bazlı Verim (Son 100)</h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Parti</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Ürün</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Hedef</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Gerçek</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Delta</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Verim</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px;font-family:monospace;font-size:12px">{{ r.batch.batch_number }}</td>
+        <td style="padding:10px">{{ r.batch.recipe.product.code }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">{{ r.target|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">{{ r.actual|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace;{% if r.delta < 0 %}color:#DC2626{% else %}color:#16A34A{% endif %}">
+          {{ r.delta|fr_number:2 }}
+        </td>
+        <td style="padding:10px;text-align:right;font-family:monospace;font-weight:600;
+                   {% if r.yield_pct != None and r.yield_pct >= 98 %}color:#16A34A
+                   {% elif r.yield_pct != None and r.yield_pct >= 95 %}color:#F59E0B
+                   {% else %}color:#DC2626{% endif %}">
+          {% if r.yield_pct != None %}%{{ r.yield_pct|floatformat:2 }}{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-muted)">Parti yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+<div class="menu-group">Satış / Commercial</div>
+<a class="menu-item {% if current == 'home' %}active{% endif %}" href="{% url 'portal:sales' %}">
+  <span class="icon">🛒</span> Satış Panosu
+</a>
+<a class="menu-item {% if current == 'bl' %}active{% endif %}" href="{% url 'portal:bl_client_list' %}">
+  <span class="icon">📦</span> BL Client (İrsaliye)
+</a>
+<a class="menu-item" href="/admin/sales/salesorder/">
+  <span class="icon">📋</span> Müşteri Siparişleri
+</a>
+<a class="menu-item" href="{% url 'portal:accounting_invoices' %}">
+  <span class="icon">🧾</span> Faturalar
+</a>
+<a class="menu-item" href="/admin/masterdata/customer/">
+  <span class="icon">👥</span> Müşteriler
+</a>

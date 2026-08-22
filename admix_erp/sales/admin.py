@@ -32,12 +32,51 @@ class ShipmentLineInline(admin.TabularInline):
 
 @admin.register(Shipment)
 class ShipmentAdmin(admin.ModelAdmin):
-    list_display = ("shipment_number", "customer", "so", "shipped_date", "carrier", "vehicle_plate")
-    list_filter = ("customer",)
-    search_fields = ("shipment_number", "so__order_number", "vehicle_plate")
+    list_display = (
+        "shipment_number", "customer", "so", "shipped_date",
+        "status", "invoice", "vehicle_plate", "driver_name",
+    )
+    list_filter = ("status", "customer")
+    search_fields = ("shipment_number", "so__order_number", "vehicle_plate", "driver_name")
     date_hierarchy = "shipped_date"
     inlines = [ShipmentLineInline]
-    actions = ["download_pdf"]
+    autocomplete_fields = ("customer", "so", "invoice")
+    fieldsets = (
+        (None, {"fields": (
+            ("shipment_number", "status"),
+            ("customer", "so"),
+            "shipped_date",
+        )}),
+        ("Sevkiyat detayı", {"fields": (
+            ("carrier", "vehicle_plate"),
+            ("driver_name",),
+            "delivery_address",
+        )}),
+        ("Faturalandırma", {"fields": ("invoice",)}),
+        ("Notlar", {"fields": ("notes",)}),
+    )
+    actions = ["download_pdf", "create_invoice_action"]
+
+    @admin.action(description="Seçili BL'lerden fatura oluştur (aynı müşteri)")
+    def create_invoice_action(self, request, queryset):
+        from django.core.exceptions import ValidationError
+        from django.contrib import messages
+        from .services import create_invoice_from_bl
+
+        # Basit sıra numarası — invoice_number kullanıcı adayı üretir
+        import datetime as dt
+        stamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
+        try:
+            inv = create_invoice_from_bl(
+                queryset, invoice_number=f"INV-BL-{stamp}",
+            )
+            self.message_user(
+                request,
+                f"Fatura oluşturuldu: {inv.invoice_number} ({queryset.count()} BL)",
+                messages.SUCCESS,
+            )
+        except ValidationError as e:
+            self.message_user(request, f"Hata: {e.messages[0]}", messages.ERROR)
 
     @admin.action(description="İrsaliye PDF indir (ilk seçili)")
     def download_pdf(self, request, queryset):

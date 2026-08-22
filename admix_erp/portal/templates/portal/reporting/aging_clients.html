@@ -1,0 +1,81 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}Échéancier clients (aging){% endblock %}
+{% block topbar %}Échéancier clients — créances par ancienneté{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Raporlar</div>
+<a class="menu-item" href="{% url 'portal:reporting_hub' %}"><span class="icon">📊</span> Rapor Merkezi</a>
+<a class="menu-item active" href="{% url 'portal:report_aging_clients' %}"><span class="icon">⏳</span> Alacak Yaşlandırma</a>
+<a class="menu-item" href="{% url 'portal:report_stock_valuation' %}"><span class="icon">📦</span> Stok Değerleme</a>
+<a class="menu-item" href="{% url 'portal:report_production_yields' %}"><span class="icon">⚙️</span> Üretim Verimi</a>
+<a class="menu-item" href="{% url 'portal:report_bl_invoice' %}"><span class="icon">🔗</span> BL-Fatura Eşleştirme</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid" style="grid-template-columns:repeat(5, 1fr)">
+  <div class="kpi success">
+    <div class="label">Vadesi gelmemiş</div>
+    <div class="value">{{ buckets.current|fr_short }}</div>
+    <div class="sub">DZD</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">0-30 gün</div>
+    <div class="value">{{ buckets.0_30|fr_short }}</div>
+    <div class="sub">DZD gecikmiş</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">31-60 gün</div>
+    <div class="value">{{ buckets.31_60|fr_short }}</div>
+    <div class="sub">DZD</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">61-90 gün</div>
+    <div class="value">{{ buckets.61_90|fr_short }}</div>
+    <div class="sub">DZD</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">90+ gün</div>
+    <div class="value">{{ buckets.90_plus|fr_short }}</div>
+    <div class="sub">DZD ciddi risk</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 6px 0">Müşteri Bazlı Yaşlandırma</h3>
+  <div style="color:var(--text-muted);font-size:13px;margin-bottom:12px">
+    Toplam açık alacak: <b>{{ total|fr_number:2 }} DZD</b> · {{ rows|length }} müşteri
+  </div>
+
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Müşteri</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Vadesi gelmemiş</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">0-30 gün</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">31-60 gün</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">61-90 gün</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">90+ gün</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">TOPLAM</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px"><b>{{ r.customer.code }}</b> · {{ r.customer.name|truncatechars:32 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">{{ r.current|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">{{ r.0_30|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace;color:#F59E0B">{{ r.31_60|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace;color:#F59E0B">{{ r.61_90|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace;color:#DC2626;font-weight:600">{{ r.90_plus|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace;font-weight:700">{{ r.total|fr_number:2 }}</td>
+        <td style="padding:10px"><a href="{% url 'portal:customer_statement' r.customer.pk %}" class="btn btn-outline" style="padding:3px 10px;font-size:11px">Detay</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-muted)">Açık alacak yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

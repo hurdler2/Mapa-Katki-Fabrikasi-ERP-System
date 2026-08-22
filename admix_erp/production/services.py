@@ -137,6 +137,9 @@ def record_dosing(
         movement_type=StockMovement.MovementType.CONSUMPTION,
         quantity=-actual_weight,
         reference=consumption.batch.batch_number,
+        document_source=f"Ordre de Production {consumption.batch.batch_number}",
+        unit_price=lot.unit_cost,
+        observations=f"Parti {consumption.batch.batch_number} · {consumption.raw_material.code}",
         note=f"Parti {consumption.batch.batch_number} · {consumption.raw_material.code}",
     )
 

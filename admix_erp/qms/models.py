@@ -47,9 +47,24 @@ class Nonconformance(TimeStamped):
         PENDING = "PENDING", "Karar bekliyor"
         USE_AS_IS = "USE_AS_IS", "Olduğu gibi kullan (concession)"
         REWORK = "REWORK", "Yeniden işle"
-        REJECT = "REJECT", "Reddet / imha"
+        REJECT = "REJECT", "Reddet / imha (Rebut)"
         RETURN_TO_SUPPLIER = "RETURN_TO_SUPPLIER", "Tedarikçiye iade"
         DOWNGRADE = "DOWNGRADE", "Sınıf düşür"
+        WAIVER = "WAIVER", "Dérogation (waiver)"
+
+    class RootCauseCategory(models.TextChoices):
+        SUPPLIER_QUALITY = "SUPPLIER_QUALITY", "Qualité fournisseur"
+        EQUIPMENT = "EQUIPMENT", "Équipement"
+        PROCESS_OPERATOR = "PROCESS_OPERATOR", "Process / Opérateur"
+        FORMULA_DESIGN = "FORMULA_DESIGN", "Conception formule"
+        MEASUREMENT_ERROR = "MEASUREMENT_ERROR", "Erreur de mesure / échantillonnage"
+        ENVIRONMENTAL = "ENVIRONMENTAL", "Environnemental"
+        OTHER = "OTHER", "Autre"
+
+    class Gate(models.TextChoices):
+        A = "A", "Gate A (Mal kabul)"
+        B = "B", "Gate B (Üretim ara)"
+        C = "C", "Gate C (Bitmiş ürün)"
 
     class Status(models.TextChoices):
         OPEN = "OPEN", "Açık"
@@ -102,6 +117,18 @@ class Nonconformance(TimeStamped):
         default=Disposition.PENDING,
     )
     disposition_reason = models.TextField("Karar gerekçesi", blank=True)
+    root_cause_category = models.CharField(
+        "Root cause category", max_length=24,
+        choices=RootCauseCategory.choices, blank=True,
+    )
+    gate = models.CharField(
+        "Gate", max_length=1, choices=Gate.choices, blank=True,
+    )
+    proof_document = models.FileField(
+        "Justificatif (BR-QA-11)", upload_to="ncr_proofs/",
+        null=True, blank=True,
+        help_text="Retour fournisseur / Rebut / Dérogation için zorunlu.",
+    )
     status = models.CharField(
         "Durum", max_length=16, choices=Status.choices, default=Status.OPEN
     )
@@ -121,6 +148,23 @@ class Nonconformance(TimeStamped):
 
     def __str__(self) -> str:
         return f"{self.ncr_number} · {self.title}"
+
+    REQUIRES_PROOF = {
+        Disposition.RETURN_TO_SUPPLIER,
+        Disposition.REJECT,
+        Disposition.WAIVER,
+    }
+
+    def clean(self) -> None:
+        """BR-QA-11: Retour fournisseur / Rebut / Dérogation için justificatif zorunlu."""
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.disposition in self.REQUIRES_PROOF and not self.proof_document:
+            raise ValidationError({
+                "proof_document":
+                    "BR-QA-11 : un document justificatif est requis pour "
+                    "Retour fournisseur / Rebut / Dérogation.",
+            })
 
 
 # ---------------------------------------------------------------------------

@@ -475,6 +475,241 @@ class InvoiceLine(TimeStamped):
 
 
 # ---------------------------------------------------------------------------
+# Sprint 8 — Facture de dépense (Gider faturası)
+# ---------------------------------------------------------------------------
+
+class ExpenseInvoice(TimeStamped):
+    """Facture de dépense — genel gider faturası.
+
+    Bakım/tamir, kira, danışmanlık, temizlik, güvenlik, elektrik/su gibi
+    işletme giderleri için ayrı belge. Satış/satın alma dışında değerlendirilir
+    ancak muhasebe tarafında yine bir Purchase Journal Entry oluşturur.
+
+    UsineERP paritesi: MECATECH Facture de Dépense (Réparation Machine) gibi
+    tedarikçiden gelen hizmet faturaları.
+    """
+
+    class Category(models.TextChoices):
+        MAINTENANCE = "MAINTENANCE", "Réparation / Maintenance"
+        UTILITY = "UTILITY", "Elektrik / Su / Doğalgaz"
+        RENT = "RENT", "Kira"
+        CONSULTING = "CONSULTING", "Danışmanlık / Etüd"
+        TRANSPORT = "TRANSPORT", "Nakliye / Yakıt"
+        CLEANING = "CLEANING", "Temizlik / Hijyen"
+        SECURITY = "SECURITY", "Güvenlik"
+        OFFICE = "OFFICE", "Ofis / Kırtasiye"
+        LEGAL = "LEGAL", "Hukuk / Vergi"
+        MARKETING = "MARKETING", "Pazarlama / Reklam"
+        OTHER = "OTHER", "Autre / Diğer"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Taslak"
+        SUBMITTED = "SUBMITTED", "Onaya sunuldu"
+        APPROVED = "APPROVED", "Onaylandı"
+        PAID = "PAID", "Ödendi"
+        REJECTED = "REJECTED", "Reddedildi"
+        CANCELLED = "CANCELLED", "İptal"
+
+    expense_number = models.CharField("Fiche No", max_length=40, unique=True)
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.PROTECT,
+        related_name="expense_invoices", verbose_name="Fournisseur",
+    )
+    category = models.CharField(
+        "Catégorie", max_length=20, choices=Category.choices,
+    )
+    invoice_date = models.DateField("Fatura tarihi")
+    due_date = models.DateField("Vade tarihi", null=True, blank=True)
+    period = models.ForeignKey(
+        Period, on_delete=models.PROTECT,
+        related_name="expense_invoices", verbose_name="Dönem",
+    )
+    description = models.TextField(
+        "Détails / Açıklama",
+        help_text="Récapitulatif des travaux effectués — gider konusu.",
+    )
+    supplier_invoice_number = models.CharField(
+        "Facture n° du fournisseur", max_length=80, blank=True,
+    )
+    amount_ht = models.DecimalField(
+        "Montant HT", max_digits=14, decimal_places=2, default=ZERO,
+    )
+    tva_rate = models.ForeignKey(
+        TVARate, on_delete=models.PROTECT,
+        related_name="expense_invoices", verbose_name="TVA",
+    )
+    amount_tva = models.DecimalField(
+        "Montant TVA", max_digits=14, decimal_places=2, default=ZERO,
+    )
+    amount_ttc = models.DecimalField(
+        "Montant TTC", max_digits=14, decimal_places=2, default=ZERO,
+    )
+    amount_in_words = models.CharField(
+        "Arrivée en toutes lettres", max_length=300, blank=True,
+        help_text="Cezayir yasal gereklilik: tutarın harfle yazılışı.",
+    )
+    status = models.CharField(
+        "Statut", max_length=12, choices=Status.choices, default=Status.DRAFT,
+    )
+    proof_document = models.FileField(
+        "Facture (PDF/JPG/PNG)",
+        upload_to="expense_invoices/%Y/%m/", null=True, blank=True,
+    )
+    equipment_reference = models.CharField(
+        "Ekipman / Yer referansı", max_length=200, blank=True,
+        help_text="Ör. Reactor R-101, Klima Ofis 2, vs.",
+    )
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="expenses_recorded", verbose_name="Giriş yapan",
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="expenses_approved",
+        verbose_name="Onaylayan",
+    )
+    approved_at = models.DateTimeField("Onay zamanı", null=True, blank=True)
+    payment_reference = models.CharField(
+        "Ödeme referansı", max_length=120, blank=True,
+    )
+    notes = models.TextField("Notlar", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Facture de Dépense"
+        verbose_name_plural = "Factures de Dépense"
+        ordering = ["-invoice_date", "-expense_number"]
+
+    def __str__(self) -> str:
+        return f"{self.expense_number} · {self.supplier.name} · {self.amount_ttc} {self.get_status_display()}"
+
+    def recompute(self):
+        """HT + TVA → TTC yeniden hesapla."""
+        from decimal import Decimal
+        rate = self.tva_rate.rate_pct if self.tva_rate else Decimal("0")
+        self.amount_tva = (self.amount_ht * rate / Decimal("100")).quantize(Decimal("0.01"))
+        self.amount_ttc = (self.amount_ht + self.amount_tva).quantize(Decimal("0.01"))
+
+
+# ---------------------------------------------------------------------------
+# Sprint 5 — Müşteri Avansı (§23 planifié) + Tahsis
+# ---------------------------------------------------------------------------
+
+class CustomerAdvance(TimeStamped):
+    """Müşteri avansı — fatura kesilmeden önce alınan ön ödeme.
+
+    UsineERP paritesi: `Avances Client (§23 planifié)` +
+    `Allocations d'avance (§23 planifié)` iki ayrı model.
+
+    Bir avans tam veya kısmi olarak faturalara tahsis edilebilir
+    (bkz. ``AdvanceAllocation``).
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Açık (kısmen/tamamen kullanılabilir)"
+        FULLY_ALLOCATED = "FULLY_ALLOCATED", "Tam tahsis edildi"
+        REFUNDED = "REFUNDED", "İade edildi"
+        CANCELLED = "CANCELLED", "İptal"
+
+    class Method(models.TextChoices):
+        BANK_TRANSFER = "BANK_TRANSFER", "Havale / EFT"
+        CHECK = "CHECK", "Çek"
+        CASH = "CASH", "Nakit"
+
+    advance_number = models.CharField("Avans No", max_length=40, unique=True)
+    customer = models.ForeignKey(
+        Customer, on_delete=models.PROTECT,
+        related_name="advances", verbose_name="Müşteri",
+    )
+    date = models.DateField("Tarih")
+    amount = models.DecimalField(
+        "Tutar (TTC)", max_digits=14, decimal_places=2,
+    )
+    currency = models.CharField("Para", max_length=5, default="DZD")
+    method = models.CharField(
+        "Yöntem", max_length=16, choices=Method.choices,
+        default=Method.BANK_TRANSFER,
+    )
+    reference = models.CharField(
+        "Belge referansı", max_length=120, blank=True,
+        help_text="Havale ref no / çek no / makbuz no.",
+    )
+    status = models.CharField(
+        "Durum", max_length=16, choices=Status.choices, default=Status.OPEN,
+    )
+    notes = models.TextField("Notlar", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Müşteri Avansı (§23)"
+        verbose_name_plural = "Müşteri Avansları (§23)"
+        ordering = ["-date", "-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.advance_number} · {self.customer.code} · {self.amount} {self.currency}"
+
+    @property
+    def allocated_total(self) -> Decimal:
+        agg = self.allocations.aggregate(t=models.Sum("amount"))["t"] or ZERO
+        return agg
+
+    @property
+    def remaining_amount(self) -> Decimal:
+        return (self.amount or ZERO) - self.allocated_total
+
+
+class AdvanceAllocation(TimeStamped):
+    """Avans → Fatura tahsisi. Bir avans birden fazla faturaya bölünebilir."""
+
+    advance = models.ForeignKey(
+        CustomerAdvance, on_delete=models.PROTECT,
+        related_name="allocations", verbose_name="Avans",
+    )
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.PROTECT,
+        related_name="advance_allocations", verbose_name="Fatura",
+    )
+    amount = models.DecimalField(
+        "Tahsis edilen tutar", max_digits=14, decimal_places=2,
+    )
+    date = models.DateField("Tahsis tarihi")
+
+    class Meta:
+        verbose_name = "Avans Tahsisi (§23)"
+        verbose_name_plural = "Avans Tahsisleri (§23)"
+        unique_together = (("advance", "invoice"),)
+        ordering = ["-date"]
+
+    def __str__(self) -> str:
+        return f"{self.advance.advance_number} → {self.invoice.invoice_number} · {self.amount}"
+
+    def clean(self) -> None:
+        """- Aynı müşteri olmalı, - Tutar avansın kalan miktarını aşamaz."""
+        from django.core.exceptions import ValidationError
+        super().clean()
+
+        if self.invoice_id and self.advance_id:
+            if self.invoice.customer_id != self.advance.customer_id:
+                raise ValidationError(
+                    "Avans ve fatura farklı müşterilere ait — tahsis edilemez."
+                )
+
+            existing = self.advance.allocations.exclude(pk=self.pk).aggregate(
+                t=models.Sum("amount"),
+            )["t"] or ZERO
+            remaining = (self.advance.amount or ZERO) - existing
+            if self.amount > remaining:
+                raise ValidationError({
+                    "amount": (
+                        f"Avansın kalan tutarı {remaining} — "
+                        f"{self.amount} tahsis edilemez."
+                    ),
+                })
+
+
+# ---------------------------------------------------------------------------
 # Ödeme
 # ---------------------------------------------------------------------------
 

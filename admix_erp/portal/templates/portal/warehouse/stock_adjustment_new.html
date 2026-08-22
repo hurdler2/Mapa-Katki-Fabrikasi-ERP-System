@@ -1,0 +1,115 @@
+{% extends "portal/_base.html" %}
+{% load formats l10n %}
+{% block title %}Yeni Stok Düzeltmesi{% endblock %}
+{% block topbar %}Nouvel Ajustement de Stock{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Stok / Depo</div>
+<a class="menu-item" href="{% url 'portal:warehouse' %}"><span class="icon">📦</span> Depo Panosu</a>
+<a class="menu-item active" href="#"><span class="icon">⚖️</span> Yeni Düzeltme</a>
+<a class="menu-item" href="/admin/inventory/stockadjustment/"><span class="icon">📜</span> Düzeltme Geçmişi</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel" style="max-width:800px">
+  <h2 style="margin:0 0 6px 0">Ajustement de stock</h2>
+  <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px">
+    Envanter sayımı, kayıp, hasar veya düzeltme gibi durumlar için stok kaydı.
+    BR uyumu: <b>Perte / Dégât / Retour</b> için <b>document justificatif</b> zorunludur.
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="stack">
+    {% csrf_token %}
+
+    <div class="field">
+      <label>Lot (RELEASED) *</label>
+      <select name="lot_id" id="lotSel" required>
+        <option value="">— Seçiniz —</option>
+        {% for l in lots %}
+          <option value="{{ l.pk }}" data-qty="{{ l.remaining_qty|unlocalize }}">
+            {{ l.raw_material.code }} · {{ l.lot_number }} · Kalan {{ l.remaining_qty }} {{ l.raw_material.unit.code }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="field">
+        <label>Type d'ajustement *</label>
+        <select name="adjustment_type" id="typeSel" required>
+          {% for value, label in types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Yeni Miktar (Qté après) *</label>
+        <input type="number" name="new_qty" step="0.0001" min="0" required
+               style="font-family:monospace;font-weight:600">
+        <small id="deltaHint" style="color:var(--text-muted);font-size:11px">
+          Lot seçince mevcut miktar burada gösterilir
+        </small>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Motif (Neden) *</label>
+      <textarea name="reason" rows="3" required placeholder="Örn. Envanter sayımı fark 5 kg — kalibrasyon hatası."></textarea>
+    </div>
+
+    <h3 style="margin-top:24px;color:var(--text-muted);font-size:13px;text-transform:uppercase">
+      Document Justificatif <span id="reqMarker" style="color:#DC2626;display:none">*</span>
+    </h3>
+    <div id="justificatifPanel" style="padding:14px;background:#FEF3C7;border-radius:8px;display:none">
+      <b>⚠ BR:</b> Perte / Dégât / Retour için belge zorunludur.
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="field">
+        <label>Document type</label>
+        <input type="text" name="document_type" placeholder="Rapor No / Envanter listesi">
+      </div>
+      <div class="field">
+        <label>Document référence</label>
+        <input type="text" name="document_ref" placeholder="RAP-2026-071">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Dosya (PDF/JPG/PNG)</label>
+      <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png"
+             style="padding:8px 10px;background:#FAFBFC;border:1px dashed var(--border-strong);border-radius:6px">
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:20px">
+      <button type="submit" class="btn btn-primary">Ajustement'i Kaydet</button>
+      <a href="{% url 'portal:warehouse' %}" class="btn btn-outline">İptal</a>
+    </div>
+  </form>
+</div>
+
+<script>
+const lotSel = document.getElementById('lotSel');
+const typeSel = document.getElementById('typeSel');
+const reqMarker = document.getElementById('reqMarker');
+const panel = document.getElementById('justificatifPanel');
+const deltaHint = document.getElementById('deltaHint');
+
+const REQUIRES = ['LOSS', 'DAMAGE', 'RETURN'];
+
+function toggleReq() {
+  const need = REQUIRES.indexOf(typeSel.value) >= 0;
+  reqMarker.style.display = need ? 'inline' : 'none';
+  panel.style.display = need ? 'block' : 'none';
+}
+
+function showQty() {
+  const opt = lotSel.options[lotSel.selectedIndex];
+  if (opt && opt.value) {
+    deltaHint.innerHTML = 'Mevcut miktar: <b>' + opt.dataset.qty + '</b>';
+  }
+}
+
+typeSel.addEventListener('change', toggleReq);
+lotSel.addEventListener('change', showQty);
+toggleReq();
+</script>
+{% endblock %}

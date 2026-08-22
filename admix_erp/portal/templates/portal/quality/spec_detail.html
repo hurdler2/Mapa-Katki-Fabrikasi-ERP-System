@@ -1,0 +1,156 @@
+{% extends "portal/_base.html" %}
+{% block title %}{{ spec.parameter.code }} v{{ spec.version }} · Şartname{% endblock %}
+{% block topbar %}Şartname · {{ spec.parameter.code }} v{{ spec.version }}{% endblock %}
+{% block sidebar %}{% include "portal/quality/_sidebar.html" %}{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+    <div>
+      <h2 style="margin:0 0 6px 0">
+        {{ spec.parameter.code }} · {{ spec.parameter.name }}
+        {% if spec.parameter.unit %}<span style="color:var(--text-muted);font-weight:400">({{ spec.parameter.unit }})</span>{% endif %}
+      </h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        Hedef:
+        {% if spec.product %}<b>{{ spec.product.code }}</b> · {{ spec.product.name }}
+        {% else %}<b>{{ spec.raw_material.code }}</b> · {{ spec.raw_material.name }}
+        {% endif %}
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-family:monospace;font-size:22px;font-weight:700">v{{ spec.version }}</div>
+      {% if spec.is_active %}
+        <span style="background:#DCFCE7;color:#166534;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600">● Aktif</span>
+      {% else %}
+        <span style="background:#F3F4F6;color:#6B7280;padding:4px 10px;border-radius:12px;font-size:12px">○ Pasif</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Limit Değerleri
+  </h3>
+  <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:16px">
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Min</div>
+      <div style="font-family:monospace;font-size:20px;font-weight:600">{{ spec.min_value|default:"—" }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Hedef (nominal)</div>
+      <div style="font-family:monospace;font-size:20px;font-weight:600">{{ spec.target_value|default:"—" }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Max</div>
+      <div style="font-family:monospace;font-size:20px;font-weight:600">{{ spec.max_value|default:"—" }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Tolerans</div>
+      <div style="font-family:monospace;font-size:20px;font-weight:600">±{{ spec.tolerance_pct }}%</div>
+    </div>
+  </div>
+
+  {% if spec.is_critical %}
+  <div style="margin-top:14px;padding:12px 16px;background:#FEE2E2;border-left:3px solid #DC2626;border-radius:4px;font-size:13px">
+    <b>BR-QA-05 · CRITIQUE</b> — Bu parametrenin ihlali kritik uygunsuzluk (NCR) açar.
+  </div>
+  {% endif %}
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Gate Kontrolleri
+  </h3>
+  <div style="display:flex;gap:12px">
+    <div style="flex:1;padding:14px;border-radius:8px;border:2px solid {% if spec.check_at_gate_a %}#3B82F6{% else %}var(--border){% endif %};background:{% if spec.check_at_gate_a %}#EFF6FF{% else %}transparent{% endif %}">
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Gate A</div>
+      <div style="font-weight:600;margin-top:2px">Mal Kabul / MP</div>
+      <div style="margin-top:6px;font-size:14px">
+        {% if spec.check_at_gate_a %}<span style="color:#3B82F6">✓ Kontrol edilir</span>{% else %}<span style="color:var(--text-muted)">— hariç</span>{% endif %}
+      </div>
+    </div>
+    <div style="flex:1;padding:14px;border-radius:8px;border:2px solid {% if spec.check_at_gate_b %}#F59E0B{% else %}var(--border){% endif %};background:{% if spec.check_at_gate_b %}#FFFBEB{% else %}transparent{% endif %}">
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Gate B</div>
+      <div style="font-weight:600;margin-top:2px">Üretim Ara (IPC)</div>
+      <div style="margin-top:6px;font-size:14px">
+        {% if spec.check_at_gate_b %}<span style="color:#F59E0B">✓ Kontrol edilir</span>{% else %}<span style="color:var(--text-muted)">— hariç</span>{% endif %}
+      </div>
+    </div>
+    <div style="flex:1;padding:14px;border-radius:8px;border:2px solid {% if spec.check_at_gate_c %}#16A34A{% else %}var(--border){% endif %};background:{% if spec.check_at_gate_c %}#F0FDF4{% else %}transparent{% endif %}">
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Gate C</div>
+      <div style="font-weight:600;margin-top:2px">Bitmiş Ürün (PF)</div>
+      <div style="margin-top:6px;font-size:14px">
+        {% if spec.check_at_gate_c %}<span style="color:#16A34A">✓ Kontrol edilir</span>{% else %}<span style="color:var(--text-muted)">— hariç</span>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Versiyon Kontrolü & QA Onayı
+  </h3>
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:16px">
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Yürürlük Tarihi</div>
+      <div style="font-family:monospace;font-weight:600">{{ spec.effective_date|default:"—" }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Oluşturan</div>
+      <div>{% if spec.created_by %}{{ spec.created_by.get_full_name|default:spec.created_by.username }}{% else %}—{% endif %}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">QA Onaylayan</div>
+      <div>
+        {% if spec.approved_by %}
+          ✓ {{ spec.approved_by.get_full_name|default:spec.approved_by.username }}
+        {% else %}
+          <span style="color:#DC2626;font-weight:600">⚠ Onay yok — aktif olamaz</span>
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Onay Zamanı</div>
+      <div style="font-family:monospace">{{ spec.approved_at|default:"—" }}</div>
+    </div>
+  </div>
+</div>
+
+{% if versions %}
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Diğer Versiyonlar
+  </h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9">
+        <th style="text-align:center;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Ver.</th>
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Yürürlük</th>
+        <th style="text-align:right;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Min / Max</th>
+        <th style="text-align:center;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Durum</th>
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Onay</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in versions %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;text-align:center;font-family:monospace">
+          <a href="{% url 'portal:quality_spec_detail' v.pk %}" style="color:var(--primary);text-decoration:none">v{{ v.version }}</a>
+        </td>
+        <td style="padding:8px">{{ v.effective_date|default:"—" }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace">{{ v.min_value|default:"—" }} / {{ v.max_value|default:"—" }}</td>
+        <td style="padding:8px;text-align:center">{% if v.is_active %}<span style="color:#16A34A">●</span>{% else %}<span style="color:var(--text-muted)">○</span>{% endif %}</td>
+        <td style="padding:8px;font-size:12px">{% if v.approved_by %}✓ {{ v.approved_by.username }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div style="margin-top:16px">
+  <a href="{% url 'portal:quality_specs' %}" class="btn btn-outline">← Şartnameler</a>
+</div>
+{% endblock %}

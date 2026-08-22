@@ -1,0 +1,121 @@
+// ============================================================
+// FB: DoseController — Coarse + Fine dozajlama
+// TIA Portal V19 · S7-1215C · OB35 (100ms cyclic)
+//
+// Her hammadde için ayrı bir instance DB kullanır.
+// Girişler: hedef ağırlık, mevcut ağırlık, tolerans, overshoot.
+// Çıkışlar: vana kontrol, pompa kontrol, dozaj tamamlandı bayrağı.
+// ============================================================
+
+FUNCTION_BLOCK "FB_DoseController"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR_INPUT
+      Enable : Bool;                  // Bu step aktif mi
+      Reset : Bool;                   // Reset komutu
+      Weight_current_kg : Real;       // Reaktör ağırlığı (canlı)
+      Weight_baseline_kg : Real;      // Start anındaki ağırlık
+      Target_dose_kg : Real;          // Bu adım için dozajlanacak
+      Tolerance_kg : Real;            // ± tolerans
+      Overshoot_kg : Real;            // Pompa kapanışı sonrası düşecek
+      Fine_speed_pct : Real;          // Fine akış hızı %
+   END_VAR
+
+   VAR_OUTPUT
+      Valve_open : Bool;              // FV vana çıkışı
+      Pump_run : Bool;                // PP pompa çıkışı
+      Pump_speed_pct : Real;          // VFD referansı (varsa)
+      Dose_done : Bool;               // Dozaj tamamlandı
+      Deviation_kg : Real;            // |hedef - gerçek|
+      Alarm_deviation : Bool;         // Tolerans dışı
+      Step : Int;                     // 0=idle 1=coarse 2=fine 3=settle 4=verify
+   END_VAR
+
+   VAR
+      settle_timer : IEC_TIMER;
+      target_absolute_kg : Real;
+      coarse_stop_kg : Real;
+      fine_stop_kg : Real;
+      dosed_kg : Real;
+   END_VAR
+BEGIN
+
+   // ═══════════════════════════════════════════════════════════
+   // Reset veya Enable=OFF → sıfırla
+   // ═══════════════════════════════════════════════════════════
+   IF #Reset OR NOT #Enable THEN
+      #Step := 0;
+      #Valve_open := FALSE;
+      #Pump_run := FALSE;
+      #Pump_speed_pct := 0.0;
+      #Dose_done := FALSE;
+      #Alarm_deviation := FALSE;
+      #settle_timer(IN := FALSE);
+      RETURN;
+   END_IF;
+
+   // Mutlak hedef ağırlık (baseline üzerine ekle)
+   #target_absolute_kg := #Weight_baseline_kg + #Target_dose_kg;
+   #coarse_stop_kg := #target_absolute_kg - #Overshoot_kg;
+   #fine_stop_kg := #target_absolute_kg;
+   #dosed_kg := #Weight_current_kg - #Weight_baseline_kg;
+
+   // ═══════════════════════════════════════════════════════════
+   // STEP MACHINE
+   // ═══════════════════════════════════════════════════════════
+   CASE #Step OF
+
+      // ────────── 0: IDLE ── başlangıç ──
+      0:
+         IF #Enable THEN
+            #Step := 1;
+         END_IF;
+
+      // ────────── 1: COARSE (%100 akış) ──────────
+      1:
+         #Valve_open := TRUE;
+         #Pump_run := TRUE;
+         #Pump_speed_pct := 100.0;
+
+         IF #Weight_current_kg >= #coarse_stop_kg THEN
+            #Step := 2;
+         END_IF;
+
+      // ────────── 2: FINE (yavaş akış) ──────────
+      2:
+         #Valve_open := TRUE;
+         #Pump_run := TRUE;
+         #Pump_speed_pct := #Fine_speed_pct;
+
+         IF #Weight_current_kg >= #fine_stop_kg THEN
+            #Pump_run := FALSE;
+            #Valve_open := FALSE;
+            #Pump_speed_pct := 0.0;
+            #Step := 3;
+         END_IF;
+
+      // ────────── 3: SETTLE (durulma) ──────────
+      3:
+         #settle_timer(IN := TRUE, PT := T#5S);
+         IF #settle_timer.Q THEN
+            #Step := 4;
+            #settle_timer(IN := FALSE);
+         END_IF;
+
+      // ────────── 4: VERIFY ──────────
+      4:
+         #Deviation_kg := ABS(#dosed_kg - #Target_dose_kg);
+         IF #Deviation_kg <= #Tolerance_kg THEN
+            #Dose_done := TRUE;
+            #Alarm_deviation := FALSE;
+         ELSE
+            #Dose_done := FALSE;
+            #Alarm_deviation := TRUE;
+         END_IF;
+         // Operatör manuel Reset bekler (tolerans hatası)
+         // Ya da Dose_done=TRUE ile bir sonraki state'e geçer
+
+   END_CASE;
+
+END_FUNCTION_BLOCK

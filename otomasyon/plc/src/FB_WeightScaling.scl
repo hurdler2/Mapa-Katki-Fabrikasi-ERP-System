@@ -1,0 +1,72 @@
+// ============================================================
+// FB: WeightScaling — Load cell mV → kg dönüşümü
+// TIA Portal V19 · S7-1215C · OB1 (her scan)
+//
+// HBM/Mettler load cell tipik span: 2 mV/V @ full scale.
+// SM 1231 AI 8× mV : ±80 mV aralık, 15 bit çözünürlük.
+//
+// Kalibrasyon:
+//   - Boş tank (tare) → 0 kg
+//   - Bilinen ağırlık ile span kalibre → mV / kg oranı
+// ============================================================
+
+FUNCTION_BLOCK "FB_WeightScaling"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR_INPUT
+      Raw_int : Int;                  // PIW'den ham analog değer (-27648..+27648)
+      mV_full_scale : Real;           // Modül aralığı (ör. 80.0 mV)
+      Tare_mV : Real;                 // Boş tartım (kalibrasyondan)
+      Span_mV_per_kg : Real;          // 1 kg başına mV
+      Filter_alpha : Real;            // 0.0..1.0 (0.1 = ~10 örnek ortalama)
+   END_VAR
+
+   VAR_OUTPUT
+      Weight_kg : Real;               // Filtrelenmiş kg değeri
+      Weight_raw_kg : Real;           // Anlık (filtre yok) kg
+      mV_current : Real;              // Anlık mV değeri
+      Sensor_fault : Bool;            // Sensör açık devre / aşırı
+   END_VAR
+
+   VAR
+      last_weight : Real;             // Önceki filtrelenmiş değer
+   END_VAR
+BEGIN
+
+   // ═══════════════════════════════════════════════════════════
+   // 1. Ham int değeri mV'ye çevir
+   //    -27648..+27648 = -mV_full_scale..+mV_full_scale
+   // ═══════════════════════════════════════════════════════════
+   #mV_current := (INT_TO_REAL(#Raw_int) / 27648.0) * #mV_full_scale;
+
+   // ═══════════════════════════════════════════════════════════
+   // 2. Sensor fault kontrolü (aralık dışı, kablo kopuk)
+   // ═══════════════════════════════════════════════════════════
+   IF (ABS(INT_TO_REAL(#Raw_int)) > 32000.0) THEN
+      #Sensor_fault := TRUE;
+      #Weight_kg := 0.0;
+      #Weight_raw_kg := 0.0;
+      RETURN;
+   ELSE
+      #Sensor_fault := FALSE;
+   END_IF;
+
+   // ═══════════════════════════════════════════════════════════
+   // 3. Tare uygula ve kg'a dönüştür
+   // ═══════════════════════════════════════════════════════════
+   IF #Span_mV_per_kg > 0.0 THEN
+      #Weight_raw_kg := (#mV_current - #Tare_mV) / #Span_mV_per_kg;
+   ELSE
+      #Weight_raw_kg := 0.0;
+   END_IF;
+
+   // ═══════════════════════════════════════════════════════════
+   // 4. Alfa filtre (Low-pass EMA)
+   //    Y[n] = alpha * X[n] + (1-alpha) * Y[n-1]
+   // ═══════════════════════════════════════════════════════════
+   #Weight_kg := #Filter_alpha * #Weight_raw_kg
+                 + (1.0 - #Filter_alpha) * #last_weight;
+   #last_weight := #Weight_kg;
+
+END_FUNCTION_BLOCK

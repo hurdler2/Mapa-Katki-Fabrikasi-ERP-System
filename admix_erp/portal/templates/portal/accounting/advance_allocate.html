@@ -1,0 +1,95 @@
+{% extends "portal/_base.html" %}
+{% load formats l10n %}
+{% block title %}Avans Tahsisi · {{ advance.advance_number }}{% endblock %}
+{% block topbar %}Allocation d'avance · {{ advance.advance_number }}{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Muhasebe</div>
+<a class="menu-item" href="{% url 'portal:accounting' %}"><span class="icon">💰</span> Muhasebe Panosu</a>
+<a class="menu-item" href="{% url 'portal:accounting_invoices' %}"><span class="icon">📄</span> Faturalar</a>
+<a class="menu-item active" href="{% url 'portal:customer_advances' %}"><span class="icon">💳</span> Müşteri Avansları</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+    <div>
+      <h2 style="margin:0 0 6px 0">{{ advance.advance_number }}</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        Müşteri: <b>{{ advance.customer.code }}</b> · {{ advance.customer.name }} · {{ advance.date }}
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Kalan tahsis edilebilir</div>
+      <div style="font-family:monospace;font-size:24px;font-weight:700;color:#16A34A">
+        {{ advance.remaining_amount|fr_number:2 }} <span style="font-size:14px;color:var(--text-muted)">DZD</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Yeni Tahsis
+  </h3>
+  <form method="post" class="stack">
+    {% csrf_token %}
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+      <div class="field">
+        <label>Fatura *</label>
+        <select name="invoice_id" required>
+          <option value="">— Seçiniz —</option>
+          {% for inv in open_invoices %}
+            <option value="{{ inv.pk }}" data-due="{{ inv.amount_due|unlocalize }}">
+              {{ inv.invoice_number }} · {{ inv.date }} · Kalan: {{ inv.amount_due|fr_number:2 }} DZD
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Tahsis Tutarı (DZD) *</label>
+        <input type="number" name="amount" step="0.01" min="0.01"
+               max="{{ advance.remaining_amount|unlocalize }}"
+               required style="font-family:monospace;font-weight:600">
+        <small style="color:var(--text-muted);font-size:11px">
+          Maks: {{ advance.remaining_amount|fr_number:2 }} DZD
+        </small>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:20px">
+      <button type="submit" class="btn btn-primary">Tahsis Et</button>
+      <a href="{% url 'portal:customer_advances' %}" class="btn btn-outline">İptal</a>
+    </div>
+  </form>
+</div>
+
+{% if advance.allocations.all %}
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Önceki Tahsisler
+  </h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9">
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Fatura</th>
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Tarih</th>
+        <th style="text-align:right;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Tutar</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in advance.allocations.all %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px"><a href="{% url 'portal:accounting_invoice_detail' a.invoice.pk %}" style="color:var(--primary)">{{ a.invoice.invoice_number }}</a></td>
+        <td style="padding:8px">{{ a.date }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace;font-weight:600">{{ a.amount|fr_number:2 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div style="margin-top:16px">
+  <a href="{% url 'portal:customer_advances' %}" class="btn btn-outline">← Avanslar</a>
+</div>
+{% endblock %}

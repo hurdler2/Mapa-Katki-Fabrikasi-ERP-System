@@ -1,0 +1,109 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}BL Client · Satış{% endblock %}
+{% block topbar %}BL Clients (Bordereaux de Livraison){% endblock %}
+{% block sidebar %}{% include "portal/sales/_sidebar.html" %}{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Taslak</div>
+    <div class="value">{{ stats.draft }}</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Teslim edildi</div>
+    <div class="value">{{ stats.delivered }}</div>
+    <div class="sub">Faturaya hazır</div>
+  </div>
+  <div class="kpi success">
+    <div class="label">Faturalandı</div>
+    <div class="value">{{ stats.invoiced }}</div>
+  </div>
+  <div class="kpi danger">
+    <div class="label">İptal</div>
+    <div class="value">{{ stats.cancelled }}</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <form method="post" action="{% url 'portal:bl_to_invoice' %}">
+    {% csrf_token %}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div>
+        <h2 style="margin:0">Sevkiyat Belgeleri (BL)</h2>
+        <div style="color:var(--text-muted);font-size:13px">
+          Cezayir uyumu: fatura kesilmeden önce BL çıkar, sonra bir veya birden çok BL için tek fatura.
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <a href="?status=" class="btn {% if not status_filter %}btn-primary{% else %}btn-outline{% endif %}">Tümü</a>
+        {% for value, label in statuses %}
+          <a href="?status={{ value }}" class="btn {% if status_filter == value %}btn-primary{% else %}btn-outline{% endif %}">{{ label }}</a>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">🧾 Seçili BL'lerden Fatura Oluştur</button>
+      </div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin-top:12px">
+      <thead>
+        <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+          <th style="width:30px;padding:10px"></th>
+          <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">BL No</th>
+          <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Müşteri</th>
+          <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Sipariş</th>
+          <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Sevk Tarihi</th>
+          <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Şoför / Plaka</th>
+          <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Durum</th>
+          <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Fatura</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in shipments %}
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:10px;text-align:center">
+            {% if s.status != 'INVOICED' and s.status != 'CANCELLED' %}
+              <input type="checkbox" name="bl_ids" value="{{ s.pk }}">
+            {% endif %}
+          </td>
+          <td style="padding:10px">
+            <a href="{% url 'portal:bl_client_detail' s.pk %}" style="font-family:monospace;font-weight:600;color:var(--primary);text-decoration:none">
+              {{ s.shipment_number }}
+            </a>
+          </td>
+          <td style="padding:10px"><b>{{ s.customer.code }}</b> · {{ s.customer.name }}</td>
+          <td style="padding:10px;font-family:monospace;font-size:12px">
+            {% if s.so %}<a href="/admin/sales/salesorder/{{ s.so.pk }}/" style="color:var(--text-muted);text-decoration:none">{{ s.so.order_number }}</a>{% else %}—{% endif %}
+          </td>
+          <td style="padding:10px">{{ s.shipped_date }}</td>
+          <td style="padding:10px;font-size:12px">
+            {% if s.driver_name %}{{ s.driver_name }}<br>{% endif %}
+            {% if s.vehicle_plate %}<span style="color:var(--text-muted);font-family:monospace">{{ s.vehicle_plate }}</span>{% endif %}
+            {% if not s.driver_name and not s.vehicle_plate %}<span style="color:var(--text-muted)">—</span>{% endif %}
+          </td>
+          <td style="padding:10px;text-align:center">
+            {% if s.status == 'DRAFT' %}<span style="background:#E5E7EB;color:#4B5563;padding:3px 8px;border-radius:8px;font-size:11px">Taslak</span>
+            {% elif s.status == 'DELIVERED' %}<span style="background:#FEF3C7;color:#92400E;padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600">Teslim</span>
+            {% elif s.status == 'INVOICED' %}<span style="background:#DCFCE7;color:#166534;padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600">Faturalandı</span>
+            {% else %}<span style="background:#FEE2E2;color:#991B1B;padding:3px 8px;border-radius:8px;font-size:11px">İptal</span>
+            {% endif %}
+          </td>
+          <td style="padding:10px">
+            {% if s.invoice %}
+              <a href="{% url 'portal:accounting_invoice_detail' s.invoice.pk %}" style="color:var(--primary);text-decoration:none;font-family:monospace;font-size:12px">
+                {{ s.invoice.invoice_number }}
+              </a>
+            {% else %}
+              <span style="color:var(--text-muted)">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-muted)">
+          BL bulunamadı.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+</div>
+{% endblock %}

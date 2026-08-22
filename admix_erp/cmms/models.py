@@ -491,3 +491,74 @@ class CalibrationRecord(TimeStamped):
 
     def __str__(self) -> str:
         return f"{self.schedule} @ {self.performed_at} → {self.result}"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 11 — SCADA sensor alert → CMMS auto work order köprüsü
+# ---------------------------------------------------------------------------
+
+class SensorAlert(TimeStamped):
+    """SCADA sensöründen gelen anomali/eşik ihlali uyarısı.
+
+    Kritik uyarılar otomatik olarak CMMS'te WorkOrder açar (BR bağı).
+    Örn: reaktör sıcaklık > 85°C → HIGH priority CORRECTIVE work order.
+    """
+
+    class Severity(models.TextChoices):
+        INFO = "INFO", "Bilgi"
+        WARNING = "WARNING", "Uyarı"
+        CRITICAL = "CRITICAL", "Kritik"
+
+    class Status(models.TextChoices):
+        NEW = "NEW", "Yeni"
+        ACK = "ACK", "Onaylandı (kabul)"
+        WO_CREATED = "WO_CREATED", "İş emri açıldı"
+        RESOLVED = "RESOLVED", "Çözüldü"
+        IGNORED = "IGNORED", "Görmezden gelindi"
+
+    alert_number = models.CharField("Alert No", max_length=40, unique=True)
+    equipment = models.ForeignKey(
+        Equipment, on_delete=models.PROTECT,
+        related_name="sensor_alerts", verbose_name="Ekipman",
+    )
+    sensor_tag = models.CharField(
+        "Sensor tag", max_length=80,
+        help_text="SCADA sensör etiketi (Ör. R101.TEMP.OUT).",
+    )
+    parameter = models.CharField(
+        "Ölçüm parametresi", max_length=60,
+        help_text="Ör. Temperature, Pressure, RPM, Flow rate.",
+    )
+    measured_value = models.DecimalField(
+        "Ölçüm değeri", max_digits=12, decimal_places=4,
+    )
+    threshold_low = models.DecimalField(
+        "Alt eşik", max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    threshold_high = models.DecimalField(
+        "Üst eşik", max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    unit = models.CharField("Birim", max_length=20, blank=True)
+    detected_at = models.DateTimeField("Tespit zamanı")
+    severity = models.CharField(
+        "Şiddet", max_length=8, choices=Severity.choices,
+        default=Severity.WARNING,
+    )
+    status = models.CharField(
+        "Durum", max_length=12, choices=Status.choices, default=Status.NEW,
+    )
+    auto_work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="triggered_by_alert",
+        verbose_name="Otomatik açılan iş emri",
+    )
+    resolved_at = models.DateTimeField("Çözüm zamanı", null=True, blank=True)
+    notes = models.TextField("Notlar", blank=True)
+
+    class Meta:
+        verbose_name = "Sensor Alert"
+        verbose_name_plural = "Sensor Alerts"
+        ordering = ["-detected_at"]
+
+    def __str__(self) -> str:
+        return f"{self.alert_number} · {self.sensor_tag}={self.measured_value} · {self.severity}"

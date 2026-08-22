@@ -1,0 +1,71 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}Valorisation stocks{% endblock %}
+{% block topbar %}Valorisation stocks — MP{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Raporlar</div>
+<a class="menu-item" href="{% url 'portal:reporting_hub' %}"><span class="icon">📊</span> Rapor Merkezi</a>
+<a class="menu-item" href="{% url 'portal:report_aging_clients' %}"><span class="icon">⏳</span> Alacak Yaşlandırma</a>
+<a class="menu-item active" href="{% url 'portal:report_stock_valuation' %}"><span class="icon">📦</span> Stok Değerleme</a>
+<a class="menu-item" href="{% url 'portal:report_production_yields' %}"><span class="icon">⚙️</span> Üretim Verimi</a>
+<a class="menu-item" href="{% url 'portal:report_bl_invoice' %}"><span class="icon">🔗</span> BL-Fatura Eşleştirme</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Toplam MP Değeri</div>
+    <div class="value">{{ total_mp|fr_short }}</div>
+    <div class="sub">DZD · RELEASED stok</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Hammadde çeşidi</div>
+    <div class="value">{{ rm_rows|length }}</div>
+    <div class="sub">Stokta bulunan</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">Hammadde Bazlı Değerleme</h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Kod</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Ad</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Miktar</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Ort. Maliyet</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Değer (DZD)</th>
+        <th style="text-align:center;padding:10px;font-size:12px;color:var(--text-muted)">Seviye</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rm_rows %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px;font-family:monospace;font-weight:600">
+          <a href="{% url 'portal:raw_material_detail' r.rm.pk %}" style="color:var(--primary);text-decoration:none">{{ r.rm.code }}</a>
+        </td>
+        <td style="padding:10px">{{ r.rm.name }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">{{ r.qty|fr_number:2 }} {{ r.rm.unit.code }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">{{ r.avg_cost|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace;font-weight:700">{{ r.value|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:center">
+          {% if r.level == 'rupture' %}<span style="background:#FEE2E2;color:#991B1B;padding:3px 8px;border-radius:8px;font-size:11px">🚨 Rupture</span>
+          {% elif r.level == 'alert' %}<span style="background:#FEF3C7;color:#92400E;padding:3px 8px;border-radius:8px;font-size:11px">⚠ Alerte</span>
+          {% else %}<span style="color:#16A34A">✓</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-muted)">Stok yok.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="background:#F6F7F9;font-weight:700">
+        <td colspan="4" style="padding:10px;text-align:right">TOPLAM</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">{{ total_mp|fr_number:2 }} DZD</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endblock %}

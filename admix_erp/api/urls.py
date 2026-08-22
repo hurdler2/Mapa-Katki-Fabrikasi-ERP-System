@@ -4,7 +4,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView, TokenRefreshView, TokenVerifyView,
 )
 
-from . import retrieval, views
+from . import retrieval, scada_endpoints, views
 
 
 router = DefaultRouter()
@@ -34,6 +34,20 @@ urlpatterns = [
     path("auth/verify/", TokenVerifyView.as_view(), name="token_verify"),
     # MCOS Faz F — Retrieval endpoint (00_MCO_1 sinav kriteri: <2 dk)
     path("retrieve/", retrieval.retrieve, name="mcos_retrieve"),
+    # SCADA köprüsü — 3 endpoint (batch POST, recipe GET, status GET)
+    # NOT: Django URL prefix'i /api/v1/ olduğundan tam URL'ler:
+    #   POST  /api/v1/production/batches/from-scada/
+    #   GET   /api/v1/production/active-recipe/
+    #   GET   /api/v1/production/scada/status/
+    path("production/batches/from-scada/",
+         scada_endpoints.batch_from_scada,
+         name="scada_batch_ingest"),
+    path("production/active-recipe/",
+         scada_endpoints.active_recipe_for_scada,
+         name="scada_active_recipe"),
+    path("production/scada/status/",
+         scada_endpoints.scada_status,
+         name="scada_status"),
     path("", include(router.urls)),
     path("auth/session/", include("rest_framework.urls")),
 ]

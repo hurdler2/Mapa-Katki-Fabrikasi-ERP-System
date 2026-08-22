@@ -7,7 +7,10 @@ from common.pdf import render_invoice_pdf
 
 from .models import (
     Account,
+    AdvanceAllocation,
+    CustomerAdvance,
     DepreciationEntry,
+    ExpenseInvoice,
     FiscalYear,
     FixedAsset,
     Invoice,
@@ -189,3 +192,95 @@ class DepreciationEntryAdmin(admin.ModelAdmin):
                     "cumulative_amount", "journal_entry")
     list_filter = ("period",)
     search_fields = ("fixed_asset__asset_number",)
+
+
+# -- Sprint 5: Müşteri Avansı (§23) -----------------------------------------
+
+class AdvanceAllocationInline(admin.TabularInline):
+    model = AdvanceAllocation
+    extra = 0
+    fields = ("invoice", "amount", "date")
+    autocomplete_fields = ("invoice",)
+
+
+@admin.register(CustomerAdvance)
+class CustomerAdvanceAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "advance_number", "customer", "date", "amount",
+        "allocated_col", "remaining_col", "status", "method",
+    )
+    list_filter = ("status", "method", "date")
+    search_fields = ("advance_number", "customer__code", "customer__name", "reference")
+    autocomplete_fields = ("customer",)
+    date_hierarchy = "date"
+    inlines = [AdvanceAllocationInline]
+
+    @admin.display(description="Tahsis")
+    def allocated_col(self, obj):
+        return obj.allocated_total
+
+    @admin.display(description="Kalan")
+    def remaining_col(self, obj):
+        rem = obj.remaining_amount
+        color = "#16A34A" if rem > 0 else "#6B7280"
+        return format_html('<b style="color:{}">{}</b>', color, rem)
+
+
+@admin.register(AdvanceAllocation)
+class AdvanceAllocationAdmin(admin.ModelAdmin):
+    list_display = ("advance", "invoice", "amount", "date")
+    list_filter = ("date",)
+    autocomplete_fields = ("advance", "invoice")
+    date_hierarchy = "date"
+
+
+# -- Sprint 8: Facture de Dépense -------------------------------------------
+
+@admin.register(ExpenseInvoice)
+class ExpenseInvoiceAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "expense_number", "supplier", "category", "invoice_date",
+        "amount_ht", "amount_ttc", "status", "performed_by",
+    )
+    list_filter = ("category", "status", "invoice_date")
+    search_fields = (
+        "expense_number", "supplier__code", "supplier__name",
+        "supplier_invoice_number", "equipment_reference", "description",
+    )
+    autocomplete_fields = ("supplier", "tva_rate", "performed_by", "approved_by")
+    date_hierarchy = "invoice_date"
+    readonly_fields = ("amount_tva", "amount_ttc", "approved_at")
+    fieldsets = (
+        (None, {"fields": (
+            ("expense_number", "status"),
+            ("supplier", "category"),
+            ("invoice_date", "due_date", "period"),
+        )}),
+        ("Détails", {"fields": (
+            "description",
+            ("supplier_invoice_number", "equipment_reference"),
+        )}),
+        ("Montants", {"fields": (
+            ("amount_ht", "tva_rate"),
+            ("amount_tva", "amount_ttc"),
+            "amount_in_words",
+        )}),
+        ("Justificatif", {"fields": ("proof_document",)}),
+        ("Onay", {"fields": (
+            ("performed_by",),
+            ("approved_by", "approved_at"),
+            "payment_reference",
+        )}),
+        ("Notlar", {"fields": ("notes",)}),
+    )
+
+    def save_model(self, request, obj, form, change):
+        # Otomatik hesaplama
+        obj.recompute()
+        if not obj.performed_by_id:
+            obj.performed_by = request.user
+        if obj.status == ExpenseInvoice.Status.APPROVED and obj.approved_at is None:
+            from django.utils import timezone
+            obj.approved_at = timezone.now()
+            obj.approved_by = obj.approved_by or request.user
+        super().save_model(request, obj, form, change)

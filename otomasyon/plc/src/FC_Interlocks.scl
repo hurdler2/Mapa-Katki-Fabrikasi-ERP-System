@@ -1,0 +1,118 @@
+// ============================================================
+// FC: Interlocks — Emniyet kilit matrisi
+// TIA Portal V19 · S7-1215C · OB1
+//
+// Amaç: Her scan'de emniyet koşullarını değerlendirmek.
+// Kilit koşulu aktifse İLGİLİ çıkış BLOKLANIR (permissive değil, forced OFF).
+// ============================================================
+
+FUNCTION "FC_Interlocks" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR_INPUT
+      // — Sensör girişleri —
+      ESTOP_active : Bool;             // HS_PANEL_ESTOP (NC — bas = TRUE)
+      R01_weight_kg : Real;            // Reaktör ağırlığı
+      R01_temp_c : Real;               // Reaktör sıcaklığı
+      Comm_fault_hmi : Bool;           // HMI-PLC iletişim kaybı
+      Sensor_fault_any : Bool;         // Herhangi bir sensör arıza
+
+      // — Vana geri besleme —
+      FV_feedback_1 : Bool;
+      FV_feedback_2 : Bool;
+      FV_feedback_3 : Bool;
+      FV_feedback_4 : Bool;
+      FV_feedback_5 : Bool;
+   END_VAR
+
+   VAR_OUTPUT
+      Allow_valve_1 : Bool;
+      Allow_valve_2 : Bool;
+      Allow_valve_3 : Bool;
+      Allow_valve_4 : Bool;
+      Allow_valve_5 : Bool;
+
+      Allow_pump_1 : Bool;
+      Allow_pump_2 : Bool;
+      Allow_pump_3 : Bool;
+      Allow_pump_4 : Bool;
+      Allow_pump_5 : Bool;
+
+      Allow_mixer : Bool;
+
+      Interlock_summary_OK : Bool;     // TÜM izinler açık mı (batch başlar)
+      Interlock_reason : String[80];   // HMI'ye görüntü
+   END_VAR
+BEGIN
+
+   // ═══════════════════════════════════════════════════════════
+   // 1. GLOBAL SHUTDOWN KOŞULLARI
+   //    E-Stop veya HH sıcaklık veya HMI kaybı → hepsi kapa
+   // ═══════════════════════════════════════════════════════════
+   IF #ESTOP_active OR #Comm_fault_hmi OR (#R01_temp_c > 60.0) THEN
+      #Allow_valve_1 := FALSE;
+      #Allow_valve_2 := FALSE;
+      #Allow_valve_3 := FALSE;
+      #Allow_valve_4 := FALSE;
+      #Allow_valve_5 := FALSE;
+      #Allow_pump_1 := FALSE;
+      #Allow_pump_2 := FALSE;
+      #Allow_pump_3 := FALSE;
+      #Allow_pump_4 := FALSE;
+      #Allow_pump_5 := FALSE;
+      #Allow_mixer := FALSE;
+      #Interlock_summary_OK := FALSE;
+
+      IF #ESTOP_active THEN
+         #Interlock_reason := 'E-STOP aktif — manuel reset gerek';
+      ELSIF #Comm_fault_hmi THEN
+         #Interlock_reason := 'HMI iletisim kaybi — fail-safe';
+      ELSIF #R01_temp_c > 60.0 THEN
+         #Interlock_reason := 'HH sicaklik — reaktor tehlikeli';
+      END_IF;
+      RETURN;
+   END_IF;
+
+   // ═══════════════════════════════════════════════════════════
+   // 2. REAKTÖR DOLU (HH ağırlık) → tüm hammadde girişleri kapa
+   // ═══════════════════════════════════════════════════════════
+   IF #R01_weight_kg > 2950.0 THEN
+      #Allow_valve_1 := FALSE;
+      #Allow_valve_2 := FALSE;
+      #Allow_valve_3 := FALSE;
+      #Allow_valve_4 := FALSE;
+      #Allow_valve_5 := FALSE;
+      #Allow_pump_1 := FALSE;
+      #Allow_pump_2 := FALSE;
+      #Allow_pump_3 := FALSE;
+      #Allow_pump_4 := FALSE;
+      #Allow_pump_5 := FALSE;
+      #Allow_mixer := TRUE; // Mixer çalışabilir
+      #Interlock_summary_OK := FALSE;
+      #Interlock_reason := 'Reaktor dolu (HH agirlik)';
+      RETURN;
+   END_IF;
+
+   // ═══════════════════════════════════════════════════════════
+   // 3. VANA-POMPA EŞLEŞMESİ
+   //    Eğer vana kapalıysa pompa çalışamaz (kuru kalır)
+   //    Vana geri besleme 2 sn içinde gelmezse arıza
+   // ═══════════════════════════════════════════════════════════
+   #Allow_valve_1 := TRUE;
+   #Allow_valve_2 := TRUE;
+   #Allow_valve_3 := TRUE;
+   #Allow_valve_4 := TRUE;
+   #Allow_valve_5 := TRUE;
+
+   #Allow_pump_1 := #FV_feedback_1;
+   #Allow_pump_2 := #FV_feedback_2;
+   #Allow_pump_3 := #FV_feedback_3;
+   #Allow_pump_4 := #FV_feedback_4;
+   #Allow_pump_5 := #FV_feedback_5;
+
+   #Allow_mixer := TRUE;
+   #Interlock_summary_OK := TRUE;
+   #Interlock_reason := 'Tum izinler acik';
+
+END_FUNCTION

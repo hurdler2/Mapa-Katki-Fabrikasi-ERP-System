@@ -56,12 +56,59 @@ urlpatterns = [
     path("uretim/", views.production_dashboard, name="production"),
     path("uretim/parti-baslat/", views.production_start_batch,
          name="production_start_batch"),
+    path("uretim/emir/<int:pk>/", views.production_order_detail,
+         name="production_order_detail"),
     path("recete/", views_extra.recipes_list, name="recipes"),
+    path("recete/yeni/", views.formulation_new, name="formulation_new"),
 
     # Kalite
     path("kalite/", views.quality_dashboard, name="quality"),
     path("kalite/test-sonuclari/", views_extra.qc_results_list, name="qc_results"),
     path("kalite/coa/", views_extra.coa_list, name="coa_list"),
+    # Sprint 9 — SDS / DoP / FPC audit yasal uyum
+    path("uyum/sds/", views.sds_list, name="sds_list"),
+    path("uyum/sds/<int:pk>/pdf/", views.sds_pdf, name="sds_pdf"),
+    path("uyum/dop/", views.dop_list, name="dop_list"),
+    path("uyum/dop/<int:pk>/pdf/", views.dop_pdf, name="dop_pdf"),
+    path("uyum/fpc-audit/", views.fpc_audit_list, name="fpc_audit_list"),
+    path("uyum/reach-svhc/", views.reach_svhc_list, name="reach_svhc_list"),
+
+    # SCADA entegrasyon durumu
+    path("scada/", views.scada_dashboard, name="scada_dashboard"),
+
+    # Sprint 8 — Facture de dépense + multi-line ajustement
+    path("muhasebe/gider/", views.expense_list, name="expense_list"),
+    path("muhasebe/gider/yeni/", views.expense_new, name="expense_new"),
+    path("muhasebe/gider/<int:pk>/", views.expense_detail, name="expense_detail"),
+    path("stok/ajustement/multi/", views.multi_line_adjustment_new,
+         name="multi_line_adjustment_new"),
+
+    # Sprint 5 — Müşteri avansı (§23)
+    path("muhasebe/avans/", views.customer_advances_list, name="customer_advances"),
+    path("muhasebe/avans/<int:pk>/tahsis/", views.advance_allocate,
+         name="advance_allocate"),
+
+    # Sprint 4 — Stok detay + Reporting hub
+    path("stok/hammadde/<int:pk>/", views.raw_material_detail, name="raw_material_detail"),
+    path("rapor/", views.reporting_hub, name="reporting_hub"),
+
+    # Sprint 6 — Detaylı raporlar
+    path("rapor/echeancier-clients/", views.report_aging_clients, name="report_aging_clients"),
+    path("rapor/valorisation-stocks/", views.report_stock_valuation, name="report_stock_valuation"),
+    path("rapor/rendements-production/", views.report_production_yields, name="report_production_yields"),
+    path("rapor/bl-fatura/", views.report_bl_invoice_matching, name="report_bl_invoice"),
+    path("muhasebe/cari/<int:customer_pk>/", views.customer_statement, name="customer_statement"),
+    path("stok/ajustement/yeni/", views.stock_adjustment_new, name="stock_adjustment_new"),
+
+    # Sales / BL Client
+    path("satis/bl/", views.bl_client_list, name="bl_client_list"),
+    path("satis/bl/<int:pk>/", views.bl_client_detail, name="bl_client_detail"),
+    path("satis/bl/faturaya-donustur/", views.bl_to_invoice_view, name="bl_to_invoice"),
+
+    path("kalite/sartname/", views.quality_specs_list, name="quality_specs"),
+    path("kalite/sartname/<int:pk>/", views.quality_spec_detail, name="quality_spec_detail"),
+    path("kalite/orneklem-plani/", views.sampling_plans_list, name="sampling_plans"),
+    path("kalite/katalog/", views.quality_catalog, name="quality_catalog"),
 
     # QMS
     path("ims/ncr/", views_extra.ncr_list, name="ncr_list"),

@@ -532,6 +532,120 @@ def production_start_batch(request: HttpRequest) -> HttpResponse:
     })
 
 
+@login_required
+def formulation_new(request: HttpRequest) -> HttpResponse:
+    """Nouvelle formulation — portal üzerinden reçete oluşturma.
+
+    UsineERP paritesi (IMG_8303): Composition tablosu +
+    MATIÈRE PREMIÈRE, QTÉ, UNITÉ, TOLÉRANCE, COMPLÉMENT.
+    """
+    _has_perm(request, "formulation.add_recipe")
+    from decimal import Decimal
+    from django.db import transaction
+    from formulation.models import Recipe, RecipeLine
+    from masterdata.models import Product, RawMaterial, UnitOfMeasure
+
+    if request.method == "POST":
+        try:
+            with transaction.atomic():
+                product = Product.objects.get(pk=int(request.POST["product"]))
+                # Sıradaki versiyon
+                last = Recipe.objects.filter(product=product).order_by("-version").first()
+                next_version = (last.version if last else 0) + 1
+                base_batch = Decimal(request.POST["base_batch_size"])
+                unit = UnitOfMeasure.objects.get(pk=int(request.POST["unit"]))
+                recipe = Recipe.objects.create(
+                    product=product, version=next_version,
+                    base_batch_size=base_batch, unit=unit,
+                    is_active=(request.POST.get("is_active") == "on"),
+                    notes=request.POST.get("notes", ""),
+                )
+                # Satırlar
+                rm_ids = request.POST.getlist("rm_id")
+                qtys = request.POST.getlist("quantity")
+                tolerances = request.POST.getlist("tolerance_pct")
+                complements = request.POST.getlist("is_complement")
+                comp_set = set(complements)  # index string olarak
+                seq = 1
+                for i, (rm_pk, qty) in enumerate(zip(rm_ids, qtys)):
+                    if not rm_pk or not qty:
+                        continue
+                    rm = RawMaterial.objects.get(pk=int(rm_pk))
+                    tol = tolerances[i] if i < len(tolerances) else "1.00"
+                    is_comp = str(i) in comp_set
+                    RecipeLine.objects.create(
+                        recipe=recipe, sequence=seq,
+                        raw_material=rm, quantity=Decimal(qty),
+                        tolerance_pct=Decimal(tol or "1.00"),
+                        is_complement=is_comp,
+                    )
+                    seq += 1
+                messages.success(
+                    request,
+                    f"Formulation {product.code} v{recipe.version} oluşturuldu."
+                    f" {recipe.lines.count()} hammadde satırı."
+                )
+                return redirect("portal:recipes")
+        except Exception as e:
+            messages.error(request, f"Kaydedilemedi: {e}")
+
+    return render(request, "portal/production/formulation_new.html", {
+        "current": "recipes",
+        "products": Product.objects.filter(is_active=True).order_by("code"),
+        "raw_materials": RawMaterial.objects.filter(is_active=True).order_by("code"),
+        "units": UnitOfMeasure.objects.all().order_by("code"),
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def production_order_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    """Üretim emri detayı — besoins théoriques + bilan massique (§22).
+
+    ``scale`` query paramı verilirse target_qty yerine geçici bir hedefle
+    tablo yeniden hesaplanır (kalıcı kayıt yok — sadece önizleme).
+    """
+    _has_perm(request, "production.view_productionorder")
+    from decimal import Decimal
+    from production.models import ProductionOrder
+
+    order = ProductionOrder.objects.select_related(
+        "product", "recipe__product", "reactor", "unit",
+    ).get(pk=pk)
+
+    scale_raw = request.GET.get("scale")
+    if scale_raw:
+        try:
+            scale_preview = Decimal(scale_raw)
+            target_preview = (order.recipe.base_batch_size * scale_preview).quantize(Decimal("0.0001"))
+        except Exception:
+            scale_preview = order.scale_factor
+            target_preview = order.target_qty
+    else:
+        scale_preview = order.scale_factor
+        target_preview = order.target_qty
+
+    # Önizleme için geçici override — DB'ye yazmadan hesap:
+    original = order.target_qty
+    order.target_qty = target_preview
+    needs = order.theoretical_needs()
+    bilan = order.recipe.bilan_massique(target_preview)
+    order.target_qty = original
+
+    all_sufficient = all(r["sufficient"] for r in needs)
+
+    return render(request, "portal/production/order_detail.html", {
+        "current": "home",
+        "order": order,
+        "needs": needs,
+        "bilan": bilan,
+        "scale_preview": scale_preview,
+        "target_preview": target_preview,
+        "all_sufficient": all_sufficient,
+        **_notif_ctx(request.user),
+    })
+
+
 # ---------------------------------------------------------------------------
 # STOK / DEPO
 # ---------------------------------------------------------------------------
@@ -565,6 +679,752 @@ def warehouse_dashboard(request: HttpRequest) -> HttpResponse:
         "pending_lots": pending_lots,
         "released_lots": released_lots,
         "alerts": alerts,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def customer_statement(request: HttpRequest, customer_pk: int) -> HttpResponse:
+    """Müşteri cari hesap özeti — faturalar, ödemeler, avanslar birleşik.
+
+    Bir müşterinin net bakiyesi = faturalar (TTC toplamı)
+                                − ödemeler (Payment.amount)
+                                − avans tahsisleri (AdvanceAllocation.amount)
+    """
+    _has_perm(request, "accounting.view_invoice")
+    from decimal import Decimal
+    from accounting.models import Invoice, Payment, CustomerAdvance, AdvanceAllocation
+    from masterdata.models import Customer
+
+    customer = Customer.objects.get(pk=customer_pk)
+    invoices = Invoice.objects.filter(
+        customer=customer, type=Invoice.Type.SALES,
+    ).order_by("-date")
+
+    payments = Payment.objects.filter(
+        invoice__customer=customer,
+        direction=Payment.Direction.INCOMING,
+    ).select_related("invoice").order_by("-date")
+
+    advances = CustomerAdvance.objects.filter(customer=customer).order_by("-date")
+
+    inv_total = invoices.aggregate(t=Sum("total_ttc"))["t"] or Decimal("0")
+    inv_paid = invoices.aggregate(t=Sum("amount_paid"))["t"] or Decimal("0")
+    payment_total = payments.aggregate(t=Sum("amount"))["t"] or Decimal("0")
+    advance_total = advances.aggregate(t=Sum("amount"))["t"] or Decimal("0")
+    advance_allocated = AdvanceAllocation.objects.filter(
+        advance__customer=customer,
+    ).aggregate(t=Sum("amount"))["t"] or Decimal("0")
+    advance_remaining = advance_total - advance_allocated
+
+    balance_due = inv_total - inv_paid
+
+    return render(request, "portal/accounting/customer_statement.html", {
+        "current": "cari",
+        "customer": customer,
+        "invoices": invoices,
+        "payments": payments,
+        "advances": advances,
+        "inv_total": inv_total,
+        "inv_paid": inv_paid,
+        "payment_total": payment_total,
+        "advance_total": advance_total,
+        "advance_remaining": advance_remaining,
+        "balance_due": balance_due,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def report_aging_clients(request: HttpRequest) -> HttpResponse:
+    """Échéancier clients — 0-30 / 31-60 / 61-90 / 90+ günlük alacak yaşlandırma."""
+    _has_perm(request, "accounting.view_invoice")
+    from decimal import Decimal
+    from accounting.models import Invoice
+
+    today = dt.date.today()
+    invoices = Invoice.objects.filter(
+        type=Invoice.Type.SALES,
+        status__in=[Invoice.Status.POSTED, Invoice.Status.PARTIALLY_PAID, Invoice.Status.DRAFT],
+    ).select_related("customer")
+
+    buckets = {"current": Decimal("0"), "0_30": Decimal("0"), "31_60": Decimal("0"),
+               "61_90": Decimal("0"), "90_plus": Decimal("0")}
+    by_customer: dict = {}
+    for inv in invoices:
+        due = inv.amount_due
+        if due <= 0:
+            continue
+        base = inv.due_date or inv.date
+        days_overdue = (today - base).days if base else 0
+        if days_overdue <= 0:
+            bucket = "current"
+        elif days_overdue <= 30:
+            bucket = "0_30"
+        elif days_overdue <= 60:
+            bucket = "31_60"
+        elif days_overdue <= 90:
+            bucket = "61_90"
+        else:
+            bucket = "90_plus"
+        buckets[bucket] += due
+
+        cust = inv.customer
+        row = by_customer.setdefault(cust.pk, {
+            "customer": cust, "current": Decimal("0"), "0_30": Decimal("0"),
+            "31_60": Decimal("0"), "61_90": Decimal("0"), "90_plus": Decimal("0"),
+            "total": Decimal("0"),
+        })
+        row[bucket] += due
+        row["total"] += due
+
+    rows = sorted(by_customer.values(), key=lambda r: -r["total"])
+    total = sum(buckets.values(), Decimal("0"))
+
+    return render(request, "portal/reporting/aging_clients.html", {
+        "current": "reports",
+        "buckets": buckets,
+        "rows": rows,
+        "total": total,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def report_stock_valuation(request: HttpRequest) -> HttpResponse:
+    """Valorisation stocks — MP ve PF stok değerleri."""
+    _has_perm(request, "masterdata.view_rawmaterial")
+    from decimal import Decimal
+    from masterdata.models import RawMaterial
+    from inventory.models import RawMaterialLot
+
+    rm_rows = []
+    total_mp = Decimal("0")
+    for rm in RawMaterial.objects.filter(is_active=True).order_by("code"):
+        lots = RawMaterialLot.objects.filter(
+            raw_material=rm, qc_status=RawMaterialLot.QCStatus.RELEASED,
+        )
+        qty = Decimal("0")
+        val = Decimal("0")
+        for lot in lots:
+            if lot.remaining_qty > 0 and lot.unit_cost:
+                qty += lot.remaining_qty
+                val += lot.remaining_qty * lot.unit_cost
+        if qty > 0 or val > 0:
+            avg = (val / qty) if qty > 0 else Decimal("0")
+            level = rm.stock_level()
+            rm_rows.append({
+                "rm": rm, "qty": qty, "value": val, "avg_cost": avg, "level": level,
+            })
+            total_mp += val
+
+    return render(request, "portal/reporting/stock_valuation.html", {
+        "current": "reports",
+        "rm_rows": rm_rows,
+        "total_mp": total_mp,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def report_production_yields(request: HttpRequest) -> HttpResponse:
+    """Rendements production — teorik vs gerçek verim analizi."""
+    _has_perm(request, "production.view_productionbatch")
+    from decimal import Decimal
+    from production.models import ProductionBatch
+
+    since = dt.date.today() - dt.timedelta(days=90)
+    batches = ProductionBatch.objects.filter(
+        status__in=[
+            ProductionBatch.Status.COMPLETED, ProductionBatch.Status.RELEASED,
+            ProductionBatch.Status.QC_HOLD,
+        ],
+        created_at__date__gte=since,
+    ).select_related("recipe__product").order_by("-created_at")
+
+    rows = []
+    total_target = Decimal("0")
+    total_actual = Decimal("0")
+    for b in batches[:100]:
+        actual = b.actual_qty or Decimal("0")
+        target = b.target_qty or Decimal("0")
+        yield_pct = ((actual / target) * 100) if target > 0 else None
+        rows.append({
+            "batch": b, "target": target, "actual": actual,
+            "delta": actual - target,
+            "yield_pct": yield_pct,
+        })
+        total_target += target
+        total_actual += actual
+
+    avg_yield = ((total_actual / total_target) * 100) if total_target > 0 else Decimal("0")
+
+    return render(request, "portal/reporting/production_yields.html", {
+        "current": "reports",
+        "rows": rows,
+        "total_target": total_target,
+        "total_actual": total_actual,
+        "avg_yield": avg_yield,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def report_bl_invoice_matching(request: HttpRequest) -> HttpResponse:
+    """BL Client ↔ Fatura eşleştirme raporu."""
+    _has_perm(request, "sales.view_shipment")
+    from sales.models import Shipment
+
+    all_bl = Shipment.objects.select_related("customer", "invoice").order_by("-shipped_date")
+    matched = all_bl.filter(invoice__isnull=False, status="INVOICED")
+    pending = all_bl.filter(
+        invoice__isnull=True,
+        status__in=["DELIVERED", "DRAFT"],
+    )
+    cancelled = all_bl.filter(status="CANCELLED")
+
+    total_pending_amount = sum(
+        (b.total_amount for b in pending), __import__("decimal").Decimal("0"),
+    )
+
+    return render(request, "portal/reporting/bl_invoice_matching.html", {
+        "current": "reports",
+        "matched": matched[:50],
+        "pending": pending[:100],
+        "cancelled": cancelled[:20],
+        "matched_count": matched.count(),
+        "pending_count": pending.count(),
+        "cancelled_count": cancelled.count(),
+        "total_pending_amount": total_pending_amount,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def stock_adjustment_new(request: HttpRequest) -> HttpResponse:
+    """Yeni stok düzeltme formu."""
+    _has_perm(request, "inventory.add_stockadjustment")
+    from decimal import Decimal
+    from inventory.models import RawMaterialLot, StockAdjustment
+    from inventory.services import apply_stock_adjustment
+
+    if request.method == "POST":
+        try:
+            lot = RawMaterialLot.objects.get(pk=int(request.POST["lot_id"]))
+            new_qty = Decimal(request.POST["new_qty"])
+            adj = apply_stock_adjustment(
+                lot,
+                adjustment_type=request.POST["adjustment_type"],
+                reason=request.POST["reason"].strip(),
+                new_qty=new_qty,
+                performed_by=request.user,
+                document_type=request.POST.get("document_type", "").strip(),
+                document_ref=request.POST.get("document_ref", "").strip(),
+                document=request.FILES.get("document"),
+            )
+            messages.success(request, f"{adj.adjustment_number} kaydedildi (Δ {adj.delta}).")
+            return redirect("portal:raw_material_detail", pk=lot.raw_material_id)
+        except Exception as e:
+            messages.error(request, f"Düzeltme başarısız: {e}")
+
+    lots = RawMaterialLot.objects.filter(
+        qc_status=RawMaterialLot.QCStatus.RELEASED, remaining_qty__gt=0,
+    ).select_related("raw_material").order_by("raw_material__code", "lot_number")[:200]
+
+    return render(request, "portal/warehouse/stock_adjustment_new.html", {
+        "current": "home",
+        "lots": lots,
+        "types": StockAdjustment.AdjustmentType.choices,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def scada_dashboard(request: HttpRequest) -> HttpResponse:
+    """SCADA entegrasyon panosu — Node-RED bağlantı sağlığı + son batch'ler."""
+    _has_perm(request, "production.view_productionbatch")
+    from decimal import Decimal
+    from production.models import ProductionBatch
+    from rest_framework.authtoken.models import Token
+    from django.contrib.auth import get_user_model
+
+    now = dt.datetime.now()
+    today = now.date()
+    week_ago = today - dt.timedelta(days=7)
+
+    scada_batches = ProductionBatch.objects.filter(
+        production_order__order_number__startswith="SCADA-"
+    ).select_related("recipe__product", "reactor").order_by("-created_at")
+
+    today_count = scada_batches.filter(created_at__date=today).count()
+    week_count = scada_batches.filter(created_at__date__gte=week_ago).count()
+    last_batch = scada_batches.first()
+
+    # Bridge user + token durumu
+    User = get_user_model()
+    bridge_user = User.objects.filter(username="scada_bridge").first()
+    token = None
+    token_created = None
+    if bridge_user:
+        tok = Token.objects.filter(user=bridge_user).first()
+        if tok:
+            token = tok.key
+            token_created = tok.created
+
+    # Son 24 saat aktivite trend (saatlik batch sayısı)
+    hourly_counts = []
+    for i in range(23, -1, -1):
+        hour_start = now - dt.timedelta(hours=i+1)
+        hour_end = now - dt.timedelta(hours=i)
+        count = scada_batches.filter(
+            created_at__gte=hour_start, created_at__lt=hour_end,
+        ).count()
+        hourly_counts.append({"hour": hour_start.strftime("%H:00"), "count": count})
+
+    return render(request, "portal/scada/dashboard.html", {
+        "current": "scada",
+        "today_count": today_count,
+        "week_count": week_count,
+        "total_count": scada_batches.count(),
+        "last_batch": last_batch,
+        "recent_batches": scada_batches[:20],
+        "bridge_user": bridge_user,
+        "token_last8": token[-8:] if token else None,
+        "token_created": token_created,
+        "hourly_counts": hourly_counts,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def sds_list(request: HttpRequest) -> HttpResponse:
+    """SDS listesi — 16 bölüm güvenlik bilgi formları."""
+    _has_perm(request, "chemicals.view_safetydatasheet")
+    from chemicals.models import SafetyDataSheet
+    qs = SafetyDataSheet.objects.select_related("profile", "prepared_by", "approved_by").order_by("-revision_date")
+    stats = {
+        "total": qs.count(),
+        "draft": qs.filter(status=SafetyDataSheet.Status.DRAFT).count(),
+        "approved": qs.filter(status=SafetyDataSheet.Status.APPROVED).count(),
+    }
+    return render(request, "portal/compliance/sds_list.html", {
+        "current": "sds", "sheets": qs[:200], "stats": stats,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def sds_pdf(request: HttpRequest, pk: int):
+    """SDS PDF üretimi — 16 bölüm."""
+    _has_perm(request, "chemicals.view_safetydatasheet")
+    from django.http import HttpResponse as _HR
+    from chemicals.models import SafetyDataSheet
+    from common.pdf import render_sds_pdf
+    sds = SafetyDataSheet.objects.select_related("profile", "prepared_by", "approved_by").get(pk=pk)
+    pdf = render_sds_pdf(sds)
+    resp = _HR(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="SDS-{sds.sds_number}-v{sds.version}.pdf"'
+    return resp
+
+
+@login_required
+def dop_list(request: HttpRequest) -> HttpResponse:
+    """DoP listesi — Declaration of Performance (CE marking)."""
+    _has_perm(request, "chemicals.view_declarationofperformance")
+    from chemicals.models import DeclarationOfPerformance
+    qs = DeclarationOfPerformance.objects.select_related("product", "coc__issuing_body").order_by("-issue_date")
+    return render(request, "portal/compliance/dop_list.html", {
+        "current": "dop", "dops": qs[:200],
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def dop_pdf(request: HttpRequest, pk: int):
+    """DoP PDF üretimi — EN 305/2011 Annex III."""
+    _has_perm(request, "chemicals.view_declarationofperformance")
+    from django.http import HttpResponse as _HR
+    from chemicals.models import DeclarationOfPerformance
+    from common.pdf import render_dop_pdf
+    dop = DeclarationOfPerformance.objects.select_related(
+        "product", "coc__issuing_body", "coc__fpc_plan",
+    ).get(pk=pk)
+    pdf = render_dop_pdf(dop)
+    resp = _HR(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="DoP-{dop.dop_number}.pdf"'
+    return resp
+
+
+@login_required
+def fpc_audit_list(request: HttpRequest) -> HttpResponse:
+    """FPC Audit listesi — Notified Body inspection kayıtları."""
+    _has_perm(request, "chemicals.view_fpcaudit")
+    from chemicals.models import FPCAudit
+    qs = FPCAudit.objects.select_related("notified_body").order_by("-audit_date")
+    return render(request, "portal/compliance/fpc_audit_list.html", {
+        "current": "fpc", "audits": qs[:100],
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def reach_svhc_list(request: HttpRequest) -> HttpResponse:
+    """REACH SVHC izleme — 0.1% üzeri bileşenler."""
+    _has_perm(request, "masterdata.view_rawmaterial")
+    from decimal import Decimal
+    from masterdata.models import RawMaterial
+    svhc = RawMaterial.objects.filter(svhc_flag=True).order_by("code")
+    over_threshold = [r for r in svhc if (r.svhc_pct or Decimal("0")) > Decimal("0.1")]
+    return render(request, "portal/compliance/reach_svhc.html", {
+        "current": "reach", "svhc_items": svhc,
+        "over_threshold": over_threshold,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def expense_list(request: HttpRequest) -> HttpResponse:
+    """Factures de dépense listesi."""
+    _has_perm(request, "accounting.view_expenseinvoice")
+    from decimal import Decimal
+    from accounting.models import ExpenseInvoice
+
+    status_filter = request.GET.get("status", "")
+    category_filter = request.GET.get("category", "")
+    qs = ExpenseInvoice.objects.select_related("supplier").order_by("-invoice_date")
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    if category_filter:
+        qs = qs.filter(category=category_filter)
+
+    total_month = ExpenseInvoice.objects.filter(
+        invoice_date__year=dt.date.today().year,
+        invoice_date__month=dt.date.today().month,
+    ).aggregate(t=Sum("amount_ttc"))["t"] or Decimal("0")
+
+    draft_count = ExpenseInvoice.objects.filter(status=ExpenseInvoice.Status.DRAFT).count()
+    approved_count = ExpenseInvoice.objects.filter(status=ExpenseInvoice.Status.APPROVED).count()
+
+    return render(request, "portal/accounting/expense_list.html", {
+        "current": "expenses",
+        "expenses": qs[:200],
+        "statuses": ExpenseInvoice.Status.choices,
+        "categories": ExpenseInvoice.Category.choices,
+        "status_filter": status_filter,
+        "category_filter": category_filter,
+        "total_month": total_month,
+        "draft_count": draft_count,
+        "approved_count": approved_count,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def expense_new(request: HttpRequest) -> HttpResponse:
+    """Yeni facture de dépense oluşturma."""
+    _has_perm(request, "accounting.add_expenseinvoice")
+    import datetime as _dt
+    from decimal import Decimal
+    from accounting.models import ExpenseInvoice, TVARate
+    from accounting.services import get_or_create_period
+    from masterdata.models import Supplier
+
+    if request.method == "POST":
+        try:
+            invoice_date = _dt.date.fromisoformat(request.POST["invoice_date"])
+            supplier = Supplier.objects.get(pk=int(request.POST["supplier"]))
+            tva = TVARate.objects.get(pk=int(request.POST["tva_rate"]))
+            period = get_or_create_period(invoice_date)
+
+            n = ExpenseInvoice.objects.count() + 1
+            expense_number = f"EXP-{invoice_date.strftime('%Y%m')}-{n:03d}"
+
+            exp = ExpenseInvoice(
+                expense_number=expense_number,
+                supplier=supplier,
+                category=request.POST["category"],
+                invoice_date=invoice_date,
+                due_date=_dt.date.fromisoformat(request.POST["due_date"])
+                         if request.POST.get("due_date") else None,
+                period=period,
+                description=request.POST["description"],
+                supplier_invoice_number=request.POST.get("supplier_invoice_number", ""),
+                amount_ht=Decimal(request.POST["amount_ht"]),
+                tva_rate=tva,
+                equipment_reference=request.POST.get("equipment_reference", ""),
+                proof_document=request.FILES.get("proof_document"),
+                performed_by=request.user,
+                notes=request.POST.get("notes", ""),
+            )
+            exp.recompute()
+            exp.save()
+            messages.success(
+                request, f"{exp.expense_number} kaydedildi. TTC: {exp.amount_ttc} DZD."
+            )
+            return redirect("portal:expense_detail", pk=exp.pk)
+        except Exception as e:
+            messages.error(request, f"Kaydedilemedi: {e}")
+
+    return render(request, "portal/accounting/expense_new.html", {
+        "current": "expenses",
+        "suppliers": Supplier.objects.filter(is_active=True).order_by("code"),
+        "tva_rates": TVARate.objects.all(),
+        "categories": ExpenseInvoice.Category.choices,
+        "today": dt.date.today().isoformat(),
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def expense_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    """Facture de dépense detay + onay akışı."""
+    _has_perm(request, "accounting.view_expenseinvoice")
+    from accounting.models import ExpenseInvoice
+
+    exp = ExpenseInvoice.objects.select_related(
+        "supplier", "tva_rate", "performed_by", "approved_by",
+    ).get(pk=pk)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "submit" and exp.status == ExpenseInvoice.Status.DRAFT:
+            exp.status = ExpenseInvoice.Status.SUBMITTED
+            exp.save()
+            messages.info(request, f"{exp.expense_number} onaya sunuldu.")
+        elif action == "approve" and exp.status == ExpenseInvoice.Status.SUBMITTED:
+            _has_perm(request, "accounting.change_expenseinvoice")
+            from django.utils import timezone
+            exp.status = ExpenseInvoice.Status.APPROVED
+            exp.approved_by = request.user
+            exp.approved_at = timezone.now()
+            exp.save()
+            messages.success(request, f"{exp.expense_number} onaylandı.")
+        elif action == "reject" and exp.status in [
+            ExpenseInvoice.Status.SUBMITTED, ExpenseInvoice.Status.DRAFT,
+        ]:
+            exp.status = ExpenseInvoice.Status.REJECTED
+            exp.save()
+            messages.warning(request, f"{exp.expense_number} reddedildi.")
+        elif action == "paid" and exp.status == ExpenseInvoice.Status.APPROVED:
+            exp.status = ExpenseInvoice.Status.PAID
+            exp.payment_reference = request.POST.get("payment_reference", "")
+            exp.save()
+            messages.success(request, f"{exp.expense_number} ödendi olarak işaretlendi.")
+        return redirect("portal:expense_detail", pk=exp.pk)
+
+    return render(request, "portal/accounting/expense_detail.html", {
+        "current": "expenses",
+        "exp": exp,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def multi_line_adjustment_new(request: HttpRequest) -> HttpResponse:
+    """Multi-line ajustement — bir belgede birden çok lot düzeltmesi."""
+    _has_perm(request, "inventory.add_stockadjustment")
+    from decimal import Decimal
+    from inventory.models import RawMaterialLot, StockAdjustment
+    from inventory.services import apply_multi_line_adjustment
+
+    if request.method == "POST":
+        try:
+            lot_ids = request.POST.getlist("lot_id")
+            new_qtys = request.POST.getlist("new_qty")
+            line_reasons = request.POST.getlist("line_reason")
+            lines = []
+            for i, lot_pk in enumerate(lot_ids):
+                if not lot_pk or not new_qtys[i]:
+                    continue
+                lot = RawMaterialLot.objects.get(pk=int(lot_pk))
+                lines.append({
+                    "lot": lot,
+                    "new_qty": Decimal(new_qtys[i]),
+                    "line_reason": line_reasons[i] if i < len(line_reasons) else "",
+                })
+            if not lines:
+                messages.error(request, "En az bir satır doldurun.")
+                return redirect("portal:multi_line_adjustment_new")
+
+            adj = apply_multi_line_adjustment(
+                adjustment_type=request.POST["adjustment_type"],
+                reason=request.POST["reason"].strip(),
+                lines=lines,
+                performed_by=request.user,
+                document_type=request.POST.get("document_type", ""),
+                document_ref=request.POST.get("document_ref", ""),
+                document=request.FILES.get("document"),
+            )
+            messages.success(
+                request,
+                f"{adj.adjustment_number} kaydedildi — {adj.lines.count()} satır, "
+                f"toplam delta {adj.delta}.",
+            )
+            return redirect("portal:warehouse")
+        except Exception as e:
+            messages.error(request, f"Kaydedilemedi: {e}")
+
+    lots = RawMaterialLot.objects.filter(
+        qc_status=RawMaterialLot.QCStatus.RELEASED, remaining_qty__gt=0,
+    ).select_related("raw_material").order_by("raw_material__code", "lot_number")[:200]
+
+    return render(request, "portal/warehouse/multi_line_adjustment.html", {
+        "current": "home",
+        "lots": lots,
+        "types": StockAdjustment.AdjustmentType.choices,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def customer_advances_list(request: HttpRequest) -> HttpResponse:
+    """Müşteri avansları listesi (§23)."""
+    _has_perm(request, "accounting.view_customeradvance")
+    from decimal import Decimal
+    from accounting.models import CustomerAdvance
+
+    status_filter = request.GET.get("status", "")
+    qs = CustomerAdvance.objects.select_related("customer").order_by("-date")
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    open_qs = CustomerAdvance.objects.filter(status=CustomerAdvance.Status.OPEN)
+    open_remaining = sum(
+        (a.remaining_amount for a in open_qs), Decimal("0")
+    )
+
+    return render(request, "portal/accounting/advances_list.html", {
+        "current": "advances",
+        "advances": qs[:200],
+        "status_filter": status_filter,
+        "statuses": CustomerAdvance.Status.choices,
+        "open_count": open_qs.count(),
+        "open_remaining": open_remaining,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def advance_allocate(request: HttpRequest, pk: int) -> HttpResponse:
+    """Avansı bir faturaya tahsis et (form + POST)."""
+    _has_perm(request, "accounting.add_advanceallocation")
+    from decimal import Decimal
+    from accounting.models import CustomerAdvance, Invoice
+    from accounting.services import allocate_advance_to_invoice
+
+    advance = CustomerAdvance.objects.select_related("customer").get(pk=pk)
+
+    if request.method == "POST":
+        try:
+            invoice = Invoice.objects.get(pk=int(request.POST["invoice_id"]))
+            amount = Decimal(request.POST["amount"])
+            allocate_advance_to_invoice(advance, invoice, amount)
+            messages.success(
+                request,
+                f"{amount} DZD, {invoice.invoice_number} faturasına tahsis edildi.",
+            )
+            return redirect("portal:customer_advances")
+        except Exception as e:
+            messages.error(request, f"Tahsis başarısız: {e}")
+
+    # Aynı müşterinin açık faturaları
+    open_invoices = Invoice.objects.filter(
+        customer=advance.customer,
+        type=Invoice.Type.SALES,
+        status__in=[Invoice.Status.POSTED, Invoice.Status.PARTIALLY_PAID, Invoice.Status.DRAFT],
+    ).order_by("-date")[:50]
+
+    return render(request, "portal/accounting/advance_allocate.html", {
+        "current": "advances",
+        "advance": advance,
+        "open_invoices": open_invoices,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def raw_material_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    """Hammadde detay sayfası — progress bar + alerte/rupture eşikleri
+    + son 20 hareket + fiyat + valeur du stock."""
+    _has_perm(request, "masterdata.view_rawmaterial")
+    from decimal import Decimal
+    from django.db.models import Sum, F, DecimalField, ExpressionWrapper
+    from masterdata.models import RawMaterial
+    from inventory.models import RawMaterialLot, StockMovement
+
+    rm = RawMaterial.objects.select_related("unit").get(pk=pk)
+
+    current = rm.current_stock
+    level = rm.stock_level()
+
+    # Ortalama birim maliyet: RELEASED lotların ağırlıklı ortalaması
+    lots = RawMaterialLot.objects.filter(
+        raw_material=rm, qc_status=RawMaterialLot.QCStatus.RELEASED,
+    ).select_related("supplier")
+    valid_lots = [l for l in lots if l.unit_cost and l.remaining_qty > 0]
+    if valid_lots:
+        total_qty = sum(l.remaining_qty for l in valid_lots)
+        total_val = sum(l.remaining_qty * l.unit_cost for l in valid_lots)
+        avg_cost = total_val / total_qty if total_qty > 0 else Decimal("0")
+        stock_value = total_val
+    else:
+        avg_cost = Decimal("0")
+        stock_value = Decimal("0")
+
+    # Progress bar: 0 → alert → rupture arası pozisyon
+    max_display = max(rm.alert_threshold * 2 if rm.alert_threshold else current, Decimal("1"))
+    if max_display <= 0:
+        percent = 0
+    else:
+        percent = min(100, int(current * 100 / max_display))
+
+    movements = StockMovement.objects.filter(
+        lot__raw_material=rm,
+    ).select_related("lot").order_by("-created_at")[:20]
+
+    return render(request, "portal/warehouse/raw_material_detail.html", {
+        "current": "home",
+        "rm": rm,
+        "current_qty": current,
+        "level": level,
+        "avg_cost": avg_cost,
+        "stock_value": stock_value,
+        "percent": percent,
+        "movements": movements,
+        "lots": lots,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def reporting_hub(request: HttpRequest) -> HttpResponse:
+    """Reporting hub — 6 rapor kartı + son çalışmalar (UsineERP paritesi)."""
+    from accounting.models import Invoice
+    from decimal import Decimal
+    import datetime as dt
+
+    today = dt.date.today()
+    month_start = today.replace(day=1)
+
+    # Basit KPI'lar
+    monthly_revenue = Invoice.objects.filter(
+        type=Invoice.Type.SALES,
+        date__gte=month_start,
+    ).aggregate(t=Sum("total_ttc"))["t"] or Decimal("0")
+
+    monthly_costs = Invoice.objects.filter(
+        type=Invoice.Type.PURCHASE,
+        date__gte=month_start,
+    ).aggregate(t=Sum("total_ttc"))["t"] or Decimal("0")
+
+    net = monthly_revenue - monthly_costs
+
+    return render(request, "portal/reporting/hub.html", {
+        "current": "reports",
+        "monthly_revenue": monthly_revenue,
+        "monthly_costs": monthly_costs,
+        "net_result": net,
+        "is_profit": net >= 0,
         **_notif_ctx(request.user),
     })
 
@@ -649,6 +1509,85 @@ def quality_dashboard(request: HttpRequest) -> HttpResponse:
     })
 
 
+@login_required
+def quality_specs_list(request: HttpRequest) -> HttpResponse:
+    """Kalite şartname listesi — versiyon, QA onayı, per-Gate rozetleri."""
+    _has_perm(request, "quality.view_qcspec")
+    from quality.models import QCSpec
+
+    only_active = request.GET.get("active") != "0"
+    qs = QCSpec.objects.select_related(
+        "parameter", "product", "raw_material", "approved_by", "created_by",
+    ).order_by("-is_active", "product__code", "parameter__code", "-version")
+    if only_active:
+        qs = qs.filter(is_active=True)
+
+    return render(request, "portal/quality/specs_list.html", {
+        "current": "specs",
+        "specs": qs[:200],
+        "only_active": only_active,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def quality_spec_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    """Şartname detay — versiyon geçmişi + Gate rozetleri."""
+    _has_perm(request, "quality.view_qcspec")
+    from quality.models import QCSpec
+
+    spec = QCSpec.objects.select_related(
+        "parameter", "product", "raw_material", "approved_by", "created_by",
+    ).get(pk=pk)
+
+    # Aynı hedef+parametrenin diğer versiyonları
+    other_qs = QCSpec.objects.filter(parameter=spec.parameter).exclude(pk=spec.pk)
+    if spec.product_id:
+        other_qs = other_qs.filter(product=spec.product)
+    else:
+        other_qs = other_qs.filter(raw_material=spec.raw_material)
+    versions = list(other_qs.order_by("-version"))
+
+    return render(request, "portal/quality/spec_detail.html", {
+        "current": "specs",
+        "spec": spec,
+        "versions": versions,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def sampling_plans_list(request: HttpRequest) -> HttpResponse:
+    """Örnekleme planları — Plan d'échantillonnage."""
+    _has_perm(request, "quality.view_samplingplan")
+    from quality.models import SamplingPlan
+
+    plans = SamplingPlan.objects.select_related(
+        "product", "raw_material",
+    ).order_by("-is_active", "gate", "code")
+
+    return render(request, "portal/quality/sampling_plans.html", {
+        "current": "plans",
+        "plans": plans,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def quality_catalog(request: HttpRequest) -> HttpResponse:
+    """Catalogue Propriétés / Tests — QCParameter kataloğu."""
+    _has_perm(request, "quality.view_qcparameter")
+    from quality.models import QCParameter
+
+    params = QCParameter.objects.filter(is_active=True).order_by("code")
+
+    return render(request, "portal/quality/catalog.html", {
+        "current": "catalog",
+        "params": params,
+        **_notif_ctx(request.user),
+    })
+
+
 # ---------------------------------------------------------------------------
 # SATIŞ
 # ---------------------------------------------------------------------------
@@ -673,6 +1612,81 @@ def sales_dashboard(request: HttpRequest) -> HttpResponse:
         "recent_shipments": recent_shipments,
         **_notif_ctx(request.user),
     })
+
+
+@login_required
+def bl_client_list(request: HttpRequest) -> HttpResponse:
+    """BL Client (İrsaliye) listesi + filtreleme."""
+    _has_perm(request, "sales.view_shipment")
+    from sales.models import Shipment
+
+    status_filter = request.GET.get("status", "")
+    qs = Shipment.objects.select_related("customer", "so", "invoice").order_by("-shipped_date")
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    stats = {
+        "draft": Shipment.objects.filter(status=Shipment.Status.DRAFT).count(),
+        "delivered": Shipment.objects.filter(status=Shipment.Status.DELIVERED).count(),
+        "invoiced": Shipment.objects.filter(status=Shipment.Status.INVOICED).count(),
+        "cancelled": Shipment.objects.filter(status=Shipment.Status.CANCELLED).count(),
+    }
+
+    return render(request, "portal/sales/bl_client_list.html", {
+        "current": "bl",
+        "shipments": qs[:200],
+        "status_filter": status_filter,
+        "stats": stats,
+        "statuses": Shipment.Status.choices,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def bl_client_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    """BL Client detay sayfası."""
+    _has_perm(request, "sales.view_shipment")
+    from sales.models import Shipment
+
+    bl = Shipment.objects.select_related(
+        "customer", "so", "invoice",
+    ).prefetch_related(
+        "lines__output_container__container",
+        "lines__so_line__product",
+    ).get(pk=pk)
+
+    return render(request, "portal/sales/bl_client_detail.html", {
+        "current": "bl",
+        "bl": bl,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def bl_to_invoice_view(request: HttpRequest) -> HttpResponse:
+    """Seçili BL Client'lerden fatura oluşturur."""
+    _has_perm(request, "sales.add_shipment")
+    from sales.models import Shipment
+    from sales.services import create_invoice_from_bl
+    import datetime as dt
+
+    if request.method != "POST":
+        return redirect("portal:bl_client_list")
+
+    ids = request.POST.getlist("bl_ids")
+    if not ids:
+        messages.error(request, "En az bir BL seçmelisiniz.")
+        return redirect("portal:bl_client_list")
+
+    shipments = Shipment.objects.filter(pk__in=ids)
+    stamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
+    try:
+        inv = create_invoice_from_bl(shipments, invoice_number=f"INV-BL-{stamp}")
+        messages.success(request, f"Fatura {inv.invoice_number} oluşturuldu ({shipments.count()} BL).")
+        return redirect("portal:accounting_invoice_detail", pk=inv.pk)
+    except Exception as e:
+        messages.error(request, f"Fatura oluşturulamadı: {e}")
+        return redirect("portal:bl_client_list")
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,128 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}{{ exp.expense_number }}{% endblock %}
+{% block topbar %}Facture de Dépense · {{ exp.expense_number }}{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Muhasebe</div>
+<a class="menu-item" href="{% url 'portal:accounting' %}"><span class="icon">💰</span> Muhasebe Panosu</a>
+<a class="menu-item active" href="{% url 'portal:expense_list' %}"><span class="icon">🧰</span> Gider Faturaları</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+    <div>
+      <h2 style="margin:0 0 6px 0">{{ exp.expense_number }}</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        Fournisseur: <b>{{ exp.supplier.code }}</b> · {{ exp.supplier.name }}
+        · Catégorie: <b>{{ exp.get_category_display }}</b>
+      </div>
+    </div>
+    <div style="text-align:right">
+      {% if exp.status == 'DRAFT' %}<span style="background:#E5E7EB;color:#4B5563;padding:6px 14px;border-radius:12px">Taslak</span>
+      {% elif exp.status == 'SUBMITTED' %}<span style="background:#FEF3C7;color:#92400E;padding:6px 14px;border-radius:12px;font-weight:600">Onaya sunuldu</span>
+      {% elif exp.status == 'APPROVED' %}<span style="background:#DBEAFE;color:#1E40AF;padding:6px 14px;border-radius:12px;font-weight:600">Onaylandı</span>
+      {% elif exp.status == 'PAID' %}<span style="background:#DCFCE7;color:#166534;padding:6px 14px;border-radius:12px;font-weight:600">Ödendi</span>
+      {% else %}<span style="background:#FEE2E2;color:#991B1B;padding:6px 14px;border-radius:12px">Reddedildi/İptal</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">Détails</h3>
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Description</div>
+      <div style="font-size:14px">{{ exp.description|linebreaks }}</div>
+      {% if exp.equipment_reference %}
+      <div style="margin-top:12px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Ekipman / Yer</div>
+        <div style="font-family:monospace;font-weight:600">{{ exp.equipment_reference }}</div>
+      </div>
+      {% endif %}
+      {% if exp.supplier_invoice_number %}
+      <div style="margin-top:8px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Fournisseur invoice n°</div>
+        <div style="font-family:monospace">{{ exp.supplier_invoice_number }}</div>
+      </div>
+      {% endif %}
+    </div>
+    <div style="background:#F6F7F9;padding:16px;border-radius:8px">
+      <div style="display:flex;justify-content:space-between;padding:6px 0">
+        <span>HT</span>
+        <span style="font-family:monospace;font-weight:600">{{ exp.amount_ht|fr_number:2 }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0">
+        <span>TVA ({{ exp.tva_rate.rate_pct }}%)</span>
+        <span style="font-family:monospace">{{ exp.amount_tva|fr_number:2 }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-top:2px solid var(--border-strong);margin-top:6px">
+        <span style="font-weight:700">TTC</span>
+        <span style="font-family:monospace;font-weight:700;font-size:18px">{{ exp.amount_ttc|fr_number:2 }} DZD</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">Zaman çizelgesi</h3>
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:16px">
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Fatura tarihi</div>
+      <div style="font-family:monospace;font-weight:600">{{ exp.invoice_date }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Vade tarihi</div>
+      <div style="font-family:monospace">{{ exp.due_date|default:"—" }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Giren</div>
+      <div>{{ exp.performed_by.get_full_name|default:exp.performed_by.username }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Onaylayan</div>
+      <div>{% if exp.approved_by %}{{ exp.approved_by.get_full_name|default:exp.approved_by.username }}{% else %}<span style="color:var(--text-muted)">—</span>{% endif %}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Onay zamanı</div>
+      <div style="font-family:monospace">{{ exp.approved_at|default:"—" }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Ödeme ref.</div>
+      <div style="font-family:monospace">{{ exp.payment_reference|default:"—" }}</div>
+    </div>
+  </div>
+</div>
+
+{% if exp.proof_document %}
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">Justificatif</h3>
+  <a href="{{ exp.proof_document.url }}" target="_blank" class="btn btn-outline">📎 Fatura belgesini aç</a>
+</div>
+{% endif %}
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">Onay Akışı</h3>
+  <form method="post" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    {% csrf_token %}
+    {% if exp.status == 'DRAFT' %}
+      <button type="submit" name="action" value="submit" class="btn btn-primary">Onaya Sun</button>
+      <button type="submit" name="action" value="reject" class="btn btn-outline" style="border-color:#DC2626;color:#DC2626">Reddet</button>
+    {% elif exp.status == 'SUBMITTED' %}
+      <button type="submit" name="action" value="approve" class="btn btn-primary" style="background:#16A34A">✓ Onayla</button>
+      <button type="submit" name="action" value="reject" class="btn btn-outline" style="border-color:#DC2626;color:#DC2626">✗ Reddet</button>
+    {% elif exp.status == 'APPROVED' %}
+      <input type="text" name="payment_reference" placeholder="Ödeme referansı (havale no vs.)"
+             style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-family:monospace">
+      <button type="submit" name="action" value="paid" class="btn btn-primary" style="background:#16A34A">💳 Ödendi olarak işaretle</button>
+    {% elif exp.status == 'PAID' %}
+      <div style="color:var(--text-muted)">✓ Bu fatura ödendi. Ref: <b>{{ exp.payment_reference|default:"—" }}</b></div>
+    {% endif %}
+  </form>
+</div>
+
+<div style="margin-top:16px">
+  <a href="{% url 'portal:expense_list' %}" class="btn btn-outline">← Liste</a>
+</div>
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}{{ order.order_number }} · Üretim Emri{% endblock %}
+{% block topbar %}Üretim Emri · {{ order.order_number }}{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Üretim</div>
+<a class="menu-item" href="{% url 'portal:production' %}"><span class="icon">🏭</span> Ana Ekran</a>
+<a class="menu-item" href="{% url 'portal:production_start_batch' %}"><span class="icon">▶️</span> Yeni Parti Başlat</a>
+<a class="menu-item active" href="#"><span class="icon">📋</span> {{ order.order_number }}</a>
+<a class="menu-item" href="/admin/production/productionorder/"><span class="icon">📋</span> Tüm Emirler</a>
+<a class="menu-item" href="/admin/formulation/recipe/"><span class="icon">📖</span> Reçeteler</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+    <div>
+      <h2 style="margin:0 0 6px 0">{{ order.product.code }} · {{ order.product.name }}</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        Reçete: <b>v{{ order.recipe.version }}</b> · Reaktör: <b>{{ order.reactor.code }}</b>
+        · Planlanan: <b>{{ order.scheduled_date|default:"—" }}</b>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <span class="badge" style="background:var(--info-bg);color:var(--info);padding:6px 10px;border-radius:6px">
+        {{ order.get_status_display }}
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Facteur d'échelle · §22 Bilan massique planifié
+  </h3>
+
+  <form method="get" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+    <div class="field" style="min-width:180px">
+      <label>Referans parti (base)</label>
+      <input type="text" value="{{ order.recipe.base_batch_size }} {{ order.unit.code }}" readonly
+             style="background:#F6F7F9;font-family:monospace">
+    </div>
+    <div class="field" style="min-width:140px">
+      <label>Ölçek faktörü</label>
+      <input type="number" name="scale" step="0.01" min="0.01" value="{{ scale_preview }}"
+             style="font-family:monospace;font-weight:600">
+    </div>
+    <div class="field" style="min-width:180px">
+      <label>Hedef miktar (önizleme)</label>
+      <input type="text" value="{{ target_preview|fr_number:4 }} {{ order.unit.code }}" readonly
+             style="background:#F6F7F9;font-family:monospace;font-weight:600">
+    </div>
+    <div>
+      <button class="btn btn-primary">Yeniden hesapla</button>
+    </div>
+  </form>
+
+  <div style="margin-top:16px;padding:14px 16px;background:{% if bilan.has_complement %}#EEF7FF{% else %}#FAFBFC{% endif %};border-radius:8px;border:1px solid var(--border)">
+    {% if bilan.has_complement %}
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px">§22 Bilan massique planifié — COMPLÉMENT aktif</div>
+      <div style="font-family:monospace">
+        Sabit toplam: <b>{{ bilan.fixed_sum|fr_number:4 }}</b> {{ order.unit.code }}
+        &nbsp;+&nbsp;
+        {{ bilan.complement_material.code }} (complément): <b>{{ bilan.complement_qty|fr_number:4 }}</b> {{ order.unit.code }}
+        &nbsp;=&nbsp;
+        Hedef: <b>{{ target_preview|fr_number:4 }}</b> {{ order.unit.code }}
+      </div>
+    {% else %}
+      <div style="font-size:13px;color:var(--text-muted)">
+        Bu reçetede COMPLÉMENT satırı yok — tüm satırlar sabit orana göre ölçekleniyor.
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Besoins théoriques MP
+    {% if all_sufficient %}
+      <span style="background:#DCFCE7;color:#166534;padding:3px 8px;border-radius:12px;font-size:11px;margin-left:8px">✓ Tüm hammaddeler yeterli</span>
+    {% else %}
+      <span style="background:#FEE2E2;color:#991B1B;padding:3px 8px;border-radius:12px;font-size:11px;margin-left:8px">⚠ Bazı hammaddeler yetersiz</span>
+    {% endif %}
+  </h3>
+
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Hammadde</th>
+        <th style="text-align:right;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">İhtiyaç</th>
+        <th style="text-align:right;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Stok (dispo)</th>
+        <th style="text-align:right;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Fark</th>
+        <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Durum</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in needs %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px">
+          <b>{{ row.raw_material.code }}</b> · {{ row.raw_material.name }}
+          {% if row.is_complement %}
+            <span style="background:#DBEAFE;color:#1E40AF;padding:2px 6px;border-radius:8px;font-size:10px;margin-left:6px;font-weight:600">§22 COMPLÉMENT</span>
+          {% endif %}
+          <div style="color:var(--text-muted);font-size:11px">Tolerans ±{{ row.tolerance_pct }}%</div>
+        </td>
+        <td style="padding:10px;text-align:right;font-family:monospace;font-weight:600">
+          {{ row.needed|fr_number:4 }}
+        </td>
+        <td style="padding:10px;text-align:right;font-family:monospace">
+          {{ row.available|fr_number:4 }}
+        </td>
+        <td style="padding:10px;text-align:right;font-family:monospace;{% if not row.sufficient %}color:#991B1B;font-weight:700{% endif %}">
+          {% if row.sufficient %}
+            +{{ row.available|floatformat:"-4" }}
+          {% else %}
+            −{{ row.shortfall|fr_number:4 }}
+          {% endif %}
+        </td>
+        <td style="padding:10px;text-align:center">
+          {% if row.sufficient %}
+            <span style="color:#16A34A;font-size:18px" title="Stok yeterli">✓</span>
+          {% else %}
+            <span style="color:#DC2626;font-size:18px" title="Stok yetersiz">✗</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if not all_sufficient %}
+  <div style="margin-top:14px;padding:12px 16px;background:#FEF2F2;border-left:3px solid #DC2626;border-radius:4px;font-size:13px">
+    <b>Stock insuffisant</b> — Bu emir başlatılırsa BR-PROD-01 tetiklenir. Eksik hammaddeleri karşılamadan üretime alınamaz.
+  </div>
+  {% endif %}
+</div>
+
+<div style="margin-top:16px;display:flex;gap:10px">
+  {% if all_sufficient and order.status != 'CANCELLED' %}
+    <a href="{% url 'portal:production_start_batch' %}?order_id={{ order.pk }}" class="btn btn-primary">▶️ Parti Başlat</a>
+  {% endif %}
+  <a href="{% url 'portal:production' %}" class="btn btn-outline">← Üretim Ana Ekran</a>
+</div>
+{% endblock %}

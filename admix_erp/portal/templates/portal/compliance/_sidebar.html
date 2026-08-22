@@ -1,0 +1,19 @@
+<div class="menu-group">Yasal Uyum · Compliance</div>
+<a class="menu-item {% if current == 'sds' %}active{% endif %}" href="{% url 'portal:sds_list' %}">
+  <span class="icon">🧪</span> SDS (16 Bölüm)
+</a>
+<a class="menu-item {% if current == 'dop' %}active{% endif %}" href="{% url 'portal:dop_list' %}">
+  <span class="icon">🏷️</span> DoP / CE Marking
+</a>
+<a class="menu-item {% if current == 'fpc' %}active{% endif %}" href="{% url 'portal:fpc_audit_list' %}">
+  <span class="icon">🔍</span> FPC Audit (NB)
+</a>
+<a class="menu-item {% if current == 'reach' %}active{% endif %}" href="{% url 'portal:reach_svhc_list' %}">
+  <span class="icon">⚗️</span> REACH SVHC
+</a>
+<a class="menu-item" href="/admin/chemicals/certificateofconformity/">
+  <span class="icon">📜</span> CoC (NB Certificate)
+</a>
+<a class="menu-item" href="/admin/chemicals/notifiedbody/">
+  <span class="icon">🏛️</span> Notified Bodies
+</a>

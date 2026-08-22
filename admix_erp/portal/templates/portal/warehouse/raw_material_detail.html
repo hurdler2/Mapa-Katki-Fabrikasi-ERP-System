@@ -1,0 +1,169 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}{{ rm.code }} · Hammadde{% endblock %}
+{% block topbar %}Hammadde · {{ rm.code }} — {{ rm.name }}{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Stok / Depo</div>
+<a class="menu-item" href="{% url 'portal:warehouse' %}"><span class="icon">📦</span> Depo Panosu</a>
+<a class="menu-item" href="/admin/masterdata/rawmaterial/"><span class="icon">🧪</span> Hammaddeler</a>
+<a class="menu-item" href="/admin/inventory/rawmateriallot/"><span class="icon">🏷️</span> Lotlar</a>
+
+<div class="menu-group" style="margin-top:20px">Accès rapides</div>
+<a class="menu-item" href="{% url 'portal:stock_adjustment_new' %}"><span class="icon">➕</span> Créer un ajustement</a>
+<a class="menu-item" href="/admin/inventory/stockmovement/?lot__raw_material__id__exact={{ rm.pk }}"><span class="icon">📋</span> Voir tous les mouvements</a>
+<a class="menu-item" href="/admin/inventory/stockadjustment/?lot__raw_material__id__exact={{ rm.pk }}"><span class="icon">📜</span> Historique ajustements</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+    <div>
+      <h2 style="margin:0 0 6px 0">{{ rm.code }} · {{ rm.name }}</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        Tip: <b>{{ rm.get_material_type_display }}</b> · Birim: <b>{{ rm.unit.code }}</b>
+        {% if rm.density %}· Yoğunluk: <b>{{ rm.density }} kg/L</b>{% endif %}
+      </div>
+    </div>
+    <div style="text-align:right">
+      {% if level == 'rupture' %}
+        <span style="background:#FEE2E2;color:#991B1B;padding:6px 14px;border-radius:12px;font-weight:700">🚨 RUPTURE — Kritik</span>
+      {% elif level == 'alert' %}
+        <span style="background:#FEF3C7;color:#92400E;padding:6px 14px;border-radius:12px;font-weight:700">⚠ ALERTE — Uyarı</span>
+      {% else %}
+        <span style="background:#DCFCE7;color:#166534;padding:6px 14px;border-radius:12px;font-weight:600">✓ Stok yeterli</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Niveau de Stock
+  </h3>
+
+  <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;margin-bottom:16px">
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Anlık stok</div>
+      <div style="font-family:monospace;font-size:26px;font-weight:700">
+        {{ current_qty|fr_number:2 }} <span style="font-size:14px;color:var(--text-muted)">{{ rm.unit.code }}</span>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Seuil d'alerte</div>
+      <div style="font-family:monospace;font-size:20px;color:#F59E0B;font-weight:600">
+        {{ rm.alert_threshold|fr_number:2 }}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Seuil de rupture</div>
+      <div style="font-family:monospace;font-size:20px;color:#DC2626;font-weight:600">
+        {{ rm.rupture_threshold|fr_number:2 }}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Valeur du stock</div>
+      <div style="font-family:monospace;font-size:20px;font-weight:600">
+        {{ stock_value|fr_number:2 }} <span style="font-size:12px;color:var(--text-muted)">DZD</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted)">Ort. birim: {{ avg_cost|fr_number:2 }} DZD</div>
+    </div>
+  </div>
+
+  <div style="background:#F6F7F9;height:24px;border-radius:12px;overflow:hidden;position:relative;border:1px solid var(--border)">
+    <div style="height:100%;width:{{ percent }}%;
+      background:{% if level == 'rupture' %}linear-gradient(90deg,#DC2626,#EF4444){% elif level == 'alert' %}linear-gradient(90deg,#F59E0B,#FBBF24){% else %}linear-gradient(90deg,#16A34A,#22C55E){% endif %};
+      transition:width 0.3s"></div>
+    <div style="position:absolute;top:3px;left:12px;color:{% if percent > 40 %}white{% else %}#111{% endif %};font-family:monospace;font-size:12px;font-weight:600">
+      {{ current_qty|fr_number:2 }} / {{ rm.alert_threshold|fr_number:0 }}
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Aktif Lotlar ({{ lots|length }})
+  </h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9">
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Lot</th>
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Tedarikçi</th>
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Kabul</th>
+        <th style="text-align:right;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Kalan</th>
+        <th style="text-align:right;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Birim Maliyet</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in lots %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-family:monospace">{{ l.lot_number }}</td>
+        <td style="padding:8px">{{ l.supplier.name|default:"—" }}</td>
+        <td style="padding:8px">{{ l.received_date }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace;font-weight:600">{{ l.remaining_qty|fr_number:2 }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace">{{ l.unit_cost|fr_number:2 }} DZD</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-muted)">RELEASED lot yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Historique des Mouvements (50 derniers)
+  </h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9">
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Date</th>
+        <th style="text-align:center;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Type</th>
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Document Source</th>
+        <th style="text-align:right;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Quantité</th>
+        <th style="text-align:right;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Prix Unitaire</th>
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Observations</th>
+        <th style="text-align:left;padding:8px;font-size:11px;text-transform:uppercase;color:var(--text-muted)">Opérateur</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in movements %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-family:monospace;font-size:12px">{{ m.created_at|date:"d/m/Y H:i" }}</td>
+        <td style="padding:8px;text-align:center">
+          {% if 'CONSUMP' in m.movement_type %}
+            <span style="background:#FEE2E2;color:#991B1B;padding:3px 8px;border-radius:8px;font-size:11px">Consommation</span>
+          {% elif 'RECEIPT' in m.movement_type %}
+            <span style="background:#DCFCE7;color:#166534;padding:3px 8px;border-radius:8px;font-size:11px">Réception</span>
+          {% elif 'ADJUST' in m.movement_type %}
+            <span style="background:#DBEAFE;color:#1E40AF;padding:3px 8px;border-radius:8px;font-size:11px">Ajustement</span>
+          {% else %}
+            <span style="background:#F3F4F6;color:#4B5563;padding:3px 8px;border-radius:8px;font-size:11px">{{ m.movement_type }}</span>
+          {% endif %}
+        </td>
+        <td style="padding:8px;font-size:12px">
+          {{ m.document_source|default:m.reference|default:"—" }}
+          {% if m.lot.lot_number %}<div style="color:var(--text-muted);font-size:10px;font-family:monospace">{{ m.lot.lot_number }}</div>{% endif %}
+        </td>
+        <td style="padding:8px;text-align:right;font-family:monospace;font-weight:600;{% if m.quantity < 0 %}color:#DC2626{% else %}color:#16A34A{% endif %}">
+          {{ m.quantity|fr_number:2 }} {{ m.lot.raw_material.unit.code }}
+        </td>
+        <td style="padding:8px;text-align:right;font-family:monospace">
+          {% if m.unit_price %}{{ m.unit_price|fr_number:2 }} DZD{% else %}—{% endif %}
+        </td>
+        <td style="padding:8px;font-size:12px;color:var(--text-muted)">{{ m.observations|truncatechars:50|default:"—" }}</td>
+        <td style="padding:8px;font-size:12px">
+          {% if m.performed_by %}{{ m.performed_by.get_full_name|default:m.performed_by.username }}{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="padding:16px;text-align:center;color:var(--text-muted)">Hareket yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div style="margin-top:16px">
+  <a href="{% url 'portal:warehouse' %}" class="btn btn-outline">← Depo Panosu</a>
+</div>
+{% endblock %}

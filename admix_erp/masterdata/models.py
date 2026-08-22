@@ -41,6 +41,36 @@ class RawMaterial(TimeStamped):
         "Yoğunluk (kg/L)", max_digits=8, decimal_places=4, null=True, blank=True
     )
     shelf_life_days = models.PositiveIntegerField("Raf ömrü (gün)", null=True, blank=True)
+    # REACH / SVHC (Sprint 9)
+    svhc_flag = models.BooleanField(
+        "REACH SVHC", default=False,
+        help_text="Substance of Very High Concern — REACH downstream notification zorunlu.",
+    )
+    svhc_pct = models.DecimalField(
+        "SVHC oranı (%)", max_digits=6, decimal_places=3, null=True, blank=True,
+        help_text="SVHC bileşik oranı — >0.1% ise downstream users bilgilendirilir.",
+    )
+    reach_registration_no = models.CharField(
+        "REACH kayıt no", max_length=40, blank=True,
+        help_text="01-XXXXXXXXXX-XX-XXXX formatında ECHA registration number.",
+    )
+    cas_number = models.CharField(
+        "CAS numarası", max_length=20, blank=True,
+        help_text="Chemical Abstracts Service — Ör. 9003-01-4",
+    )
+    ec_number = models.CharField(
+        "EC numarası", max_length=20, blank=True,
+    )
+    alert_threshold = models.DecimalField(
+        "Seuil d'alerte", max_digits=12, decimal_places=2,
+        default=0,
+        help_text="Bu miktarın altına düşerse sarı alarm (uyarı) verilir.",
+    )
+    rupture_threshold = models.DecimalField(
+        "Seuil de rupture", max_digits=12, decimal_places=2,
+        default=0,
+        help_text="Bu miktarın altına düşerse kırmızı alarm (kritik) verilir.",
+    )
     is_active = models.BooleanField("Aktif", default=True)
 
     class Meta:
@@ -50,6 +80,27 @@ class RawMaterial(TimeStamped):
 
     def __str__(self) -> str:
         return f"{self.code} — {self.name}"
+
+    @property
+    def current_stock(self):
+        """Anlık toplam RELEASED stok (RawMaterialLot.remaining_qty toplamı)."""
+        from decimal import Decimal
+        from django.db.models import Sum
+        from inventory.models import RawMaterialLot
+        total = RawMaterialLot.objects.filter(
+            raw_material=self,
+            qc_status=RawMaterialLot.QCStatus.RELEASED,
+        ).aggregate(t=Sum("remaining_qty"))["t"] or Decimal("0")
+        return total
+
+    def stock_level(self):
+        """Stok seviyesi: 'ok' | 'alert' | 'rupture'."""
+        cur = self.current_stock
+        if self.rupture_threshold and cur <= self.rupture_threshold:
+            return "rupture"
+        if self.alert_threshold and cur <= self.alert_threshold:
+            return "alert"
+        return "ok"
 
 
 class Product(TimeStamped):

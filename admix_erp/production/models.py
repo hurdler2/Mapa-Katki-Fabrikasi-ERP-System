@@ -70,6 +70,42 @@ class ProductionOrder(TimeStamped):
     def __str__(self) -> str:
         return f"{self.order_number} · {self.product.code}"
 
+    @property
+    def scale_factor(self) -> Decimal:
+        """Facteur d'échelle: target_qty / recipe.base_batch_size."""
+        base = self.recipe.base_batch_size
+        if base <= 0:
+            return Decimal("0")
+        return (self.target_qty / base).quantize(Decimal("0.0001"))
+
+    def theoretical_needs(self) -> list[dict]:
+        """Besoins théoriques MP + stok yeterlilik.
+
+        Her satır: {raw_material, needed, available, sufficient, shortfall,
+                    tolerance_pct, is_complement}
+        `available` = ilgili hammaddenin RELEASED lotlarındaki remaining_qty toplamı.
+        """
+        from inventory.models import RawMaterialLot
+
+        rows = self.recipe.scaled_lines(self.target_qty)
+        out: list[dict] = []
+        for r in rows:
+            avail = RawMaterialLot.objects.filter(
+                raw_material=r["raw_material"],
+                qc_status=RawMaterialLot.QCStatus.RELEASED,
+            ).aggregate(total=models.Sum("remaining_qty"))["total"] or Decimal("0")
+            needed = r["quantity"]
+            out.append({
+                "raw_material": r["raw_material"],
+                "needed": needed,
+                "available": avail,
+                "sufficient": avail >= needed,
+                "shortfall": (needed - avail) if avail < needed else Decimal("0"),
+                "tolerance_pct": r["tolerance_pct"],
+                "is_complement": r["is_complement"],
+            })
+        return out
+
 
 class ProductionBatch(TimeStamped):
     """Üretim partisi. batch_number = mamul lot numarasıdır."""
@@ -195,6 +231,66 @@ class MaterialConsumption(TimeStamped):
         return (
             (self.actual_weight - self.target_weight) / self.target_weight * Decimal("100")
         ).quantize(Decimal("0.01"))
+
+
+class ProductionCampaign(TimeStamped):
+    """Üretim kampanyası — bir üründen ardışık N parti planlaması (MES super batch).
+
+    Sika/BASF modeli: kampanya = tek reaktörde art arda 5-20 batch üretim.
+    Kampanya toplam hedef miktar, süre, tek reaktör atanır.
+    """
+
+    class Status(models.TextChoices):
+        PLANNED = "PLANNED", "Planlandı"
+        RUNNING = "RUNNING", "Devam ediyor"
+        PAUSED = "PAUSED", "Duraklatıldı"
+        COMPLETED = "COMPLETED", "Tamamlandı"
+        CANCELLED = "CANCELLED", "İptal"
+
+    campaign_number = models.CharField("Campaign No", max_length=40, unique=True)
+    product = models.ForeignKey(
+        Product, on_delete=models.PROTECT,
+        related_name="campaigns", verbose_name="Ürün",
+    )
+    recipe = models.ForeignKey(
+        Recipe, on_delete=models.PROTECT,
+        related_name="campaigns", verbose_name="Reçete",
+    )
+    reactor = models.ForeignKey(
+        Container, on_delete=models.PROTECT,
+        related_name="campaigns", verbose_name="Reaktör",
+        limit_choices_to={"container_type": Container.ContainerType.REACTOR},
+    )
+    planned_batch_count = models.PositiveIntegerField(
+        "Planlanan parti sayısı",
+        help_text="Kampanya boyunca üretilecek toplam parti sayısı.",
+    )
+    completed_batch_count = models.PositiveIntegerField(
+        "Tamamlanan parti", default=0,
+    )
+    total_target_qty = models.DecimalField(
+        "Toplam hedef", max_digits=14, decimal_places=2,
+    )
+    scheduled_start = models.DateField("Başlangıç")
+    scheduled_end = models.DateField("Bitiş")
+    status = models.CharField(
+        "Durum", max_length=12, choices=Status.choices, default=Status.PLANNED,
+    )
+    notes = models.TextField("Notlar", blank=True)
+
+    class Meta:
+        verbose_name = "Production Campaign"
+        verbose_name_plural = "Production Campaigns"
+        ordering = ["-scheduled_start"]
+
+    def __str__(self) -> str:
+        return f"{self.campaign_number} · {self.product.code} × {self.planned_batch_count}"
+
+    @property
+    def progress_pct(self):
+        if self.planned_batch_count == 0:
+            return 0
+        return int((self.completed_batch_count / self.planned_batch_count) * 100)
 
 
 class OutputContainer(TimeStamped):

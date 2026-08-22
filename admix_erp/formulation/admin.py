@@ -6,7 +6,7 @@ from .models import Recipe, RecipeLine
 class RecipeLineInline(admin.TabularInline):
     model = RecipeLine
     extra = 1
-    fields = ("sequence", "raw_material", "quantity", "tolerance_pct")
+    fields = ("sequence", "raw_material", "quantity", "tolerance_pct", "is_complement")
     ordering = ("sequence",)
 
 
@@ -20,5 +20,5 @@ class RecipeAdmin(admin.ModelAdmin):
 
 @admin.register(RecipeLine)
 class RecipeLineAdmin(admin.ModelAdmin):
-    list_display = ("recipe", "sequence", "raw_material", "quantity", "tolerance_pct")
-    list_filter = ("raw_material",)
+    list_display = ("recipe", "sequence", "raw_material", "quantity", "tolerance_pct", "is_complement")
+    list_filter = ("raw_material", "is_complement")

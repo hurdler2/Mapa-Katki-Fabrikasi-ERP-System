@@ -1,0 +1,124 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}SCADA Entegrasyon{% endblock %}
+{% block topbar %}SCADA ↔ ADMIX-ERP Köprüsü{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">SCADA</div>
+<a class="menu-item active" href="{% url 'portal:scada_dashboard' %}"><span class="icon">🔗</span> Entegrasyon Panosu</a>
+<a class="menu-item" href="/admin/production/productionbatch/?q=SCADA"><span class="icon">📦</span> SCADA Batch'ler</a>
+<a class="menu-item" href="/admin/authtoken/tokenproxy/"><span class="icon">🔑</span> Token Yönetimi</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi {% if last_batch %}success{% else %}warning{% endif %}">
+    <div class="label">Köprü Durumu</div>
+    <div class="value">{% if last_batch %}● ONLINE{% else %}⚠ Beklemede{% endif %}</div>
+    <div class="sub">
+      {% if last_batch %}Son batch: {{ last_batch.completed_at|date:"d/m/Y H:i"|default:"—" }}
+      {% else %}Henüz SCADA batch alınmadı{% endif %}
+    </div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Bugün</div>
+    <div class="value">{{ today_count }}</div>
+    <div class="sub">SCADA batch kaydı</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Bu Hafta</div>
+    <div class="value">{{ week_count }}</div>
+    <div class="sub">7 gün toplam</div>
+  </div>
+  <div class="kpi info">
+    <div class="label">Toplam</div>
+    <div class="value">{{ total_count }}</div>
+    <div class="sub">Tüm zamanlar</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Bridge Kimlik & API
+  </h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Bridge Kullanıcı</div>
+      <div style="font-family:monospace;font-weight:600;font-size:15px;margin-top:4px">
+        {% if bridge_user %}{{ bridge_user.username }} · <span style="color:#16A34A">✓ aktif</span>{% else %}<span style="color:#DC2626">⚠ Kurulmadı — <code>python manage.py scada_setup</code> çalıştırın</span>{% endif %}
+      </div>
+      {% if token_created %}
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+        Token oluşturuldu: {{ token_created|date:"d/m/Y H:i" }} · Son 8 karakter: <b style="font-family:monospace">…{{ token_last8 }}</b>
+      </div>
+      {% endif %}
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">API Endpoint'leri</div>
+      <div style="font-family:monospace;font-size:12px;line-height:1.6;margin-top:4px">
+        <b>POST</b> /api/v1/production/batches/from-scada/<br>
+        <b>GET</b>&nbsp;&nbsp; /api/v1/production/active-recipe/<br>
+        <b>GET</b>&nbsp;&nbsp; /api/v1/production/scada/status/
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Son 24 Saat Aktivite
+  </h3>
+  <div style="display:flex;gap:2px;align-items:flex-end;height:80px;padding:8px 0">
+    {% for h in hourly_counts %}
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px" title="{{ h.hour }} · {{ h.count }} batch">
+      <div style="flex:1;display:flex;align-items:flex-end;width:100%">
+        <div style="width:100%;background:{% if h.count > 0 %}#2B4F71{% else %}#E5E7EB{% endif %};height:{% if h.count > 0 %}{% widthratio h.count 5 100 %}{% else %}2{% endif %}%;border-radius:2px 2px 0 0;min-height:2px"></div>
+      </div>
+      <div style="font-size:8px;color:var(--text-muted);font-family:monospace">{{ h.hour|slice:":2" }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em">
+    Son SCADA Batch'leri (20)
+  </h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Batch No</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Reçete</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Hedef</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Gerçek</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Verim</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Operatör</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Tamamlandı</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in recent_batches %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px;font-family:monospace;font-weight:600">{{ b.batch_number }}</td>
+        <td style="padding:10px;font-size:13px">{{ b.recipe.product.code }} v{{ b.recipe.version }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">{{ b.target_qty|fr_number:1 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace;font-weight:600">{{ b.actual_qty|fr_number:1 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">
+          {% if b.actual_qty and b.target_qty %}
+            {% widthratio b.actual_qty b.target_qty 100 %}%
+          {% else %}—{% endif %}
+        </td>
+        <td style="padding:10px;font-size:12px">{{ b.operator|default:"—" }}</td>
+        <td style="padding:10px;font-size:12px;color:var(--text-muted)">
+          {{ b.completed_at|date:"d/m/Y H:i"|default:"—" }}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted)">
+        Henüz SCADA'dan batch alınmadı. Entegratör tarafında Node-RED devreye alındığında burada görünecek.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

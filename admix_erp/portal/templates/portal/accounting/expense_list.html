@@ -1,0 +1,88 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}Factures de Dépense{% endblock %}
+{% block topbar %}Factures de Dépense · Gider Faturaları{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Muhasebe</div>
+<a class="menu-item" href="{% url 'portal:accounting' %}"><span class="icon">💰</span> Muhasebe Panosu</a>
+<a class="menu-item" href="{% url 'portal:accounting_invoices' %}"><span class="icon">📄</span> Faturalar</a>
+<a class="menu-item active" href="{% url 'portal:expense_list' %}"><span class="icon">🧰</span> Gider Faturaları</a>
+<a class="menu-item" href="{% url 'portal:customer_advances' %}"><span class="icon">💳</span> Müşteri Avansları</a>
+<a class="menu-item" href="{% url 'portal:reporting_hub' %}"><span class="icon">📊</span> Raporlar</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Bu ay toplam</div>
+    <div class="value">{{ total_month|fr_short }}</div>
+    <div class="sub">DZD (TTC)</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Taslak</div>
+    <div class="value">{{ draft_count }}</div>
+    <div class="sub">Onaya sunulmamış</div>
+  </div>
+  <div class="kpi success">
+    <div class="label">Onaylandı</div>
+    <div class="value">{{ approved_count }}</div>
+    <div class="sub">Ödemeye hazır</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div>
+      <h2 style="margin:0">Gider Faturaları</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        Bakım/tamir, kira, danışmanlık, ulaşım vs. — Ana faturalardan ayrı belgelenir.
+      </div>
+    </div>
+    <a href="{% url 'portal:expense_new' %}" class="btn btn-primary">+ Yeni Gider Faturası</a>
+  </div>
+
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+    <a href="?" class="btn {% if not category_filter and not status_filter %}btn-primary{% else %}btn-outline{% endif %}" style="padding:4px 12px;font-size:12px">Tümü</a>
+    {% for value, label in categories %}
+      <a href="?category={{ value }}" class="btn {% if category_filter == value %}btn-primary{% else %}btn-outline{% endif %}" style="padding:4px 12px;font-size:12px">{{ label|truncatechars:20 }}</a>
+    {% endfor %}
+  </div>
+
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Fiche No</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Fournisseur</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Catégorie</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Tarih</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">HT</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">TTC</th>
+        <th style="text-align:center;padding:10px;font-size:12px;color:var(--text-muted)">Statut</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in expenses %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px"><a href="{% url 'portal:expense_detail' e.pk %}" style="color:var(--primary);font-family:monospace;font-weight:600">{{ e.expense_number }}</a></td>
+        <td style="padding:10px"><b>{{ e.supplier.code }}</b> · {{ e.supplier.name|truncatechars:26 }}</td>
+        <td style="padding:10px;font-size:12px">{{ e.get_category_display }}</td>
+        <td style="padding:10px">{{ e.invoice_date }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">{{ e.amount_ht|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace;font-weight:600">{{ e.amount_ttc|fr_number:2 }}</td>
+        <td style="padding:10px;text-align:center">
+          {% if e.status == 'DRAFT' %}<span style="background:#E5E7EB;color:#4B5563;padding:3px 8px;border-radius:8px;font-size:11px">Taslak</span>
+          {% elif e.status == 'SUBMITTED' %}<span style="background:#FEF3C7;color:#92400E;padding:3px 8px;border-radius:8px;font-size:11px">Onaya sunuldu</span>
+          {% elif e.status == 'APPROVED' %}<span style="background:#DBEAFE;color:#1E40AF;padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600">Onaylandı</span>
+          {% elif e.status == 'PAID' %}<span style="background:#DCFCE7;color:#166534;padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600">Ödendi</span>
+          {% elif e.status == 'REJECTED' %}<span style="background:#FEE2E2;color:#991B1B;padding:3px 8px;border-radius:8px;font-size:11px">Reddedildi</span>
+          {% else %}<span style="background:#F3F4F6;color:#6B7280;padding:3px 8px;border-radius:8px;font-size:11px">İptal</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted)">Gider faturası yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

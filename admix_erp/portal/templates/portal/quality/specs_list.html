@@ -1,0 +1,81 @@
+{% extends "portal/_base.html" %}
+{% block title %}Şartnameler · Kalite{% endblock %}
+{% block topbar %}Spécifications qualité{% endblock %}
+{% block sidebar %}{% include "portal/quality/_sidebar.html" %}{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div>
+      <h2 style="margin:0">Şartnameler</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        Versiyonlu şartnameler — QA onayı, per-Gate kontrolü, kritik parametre bayrakları.
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a href="?active={% if only_active %}0{% else %}1{% endif %}" class="btn btn-outline">
+        {% if only_active %}Tümü{% else %}Sadece aktif{% endif %}
+      </a>
+      <a href="/admin/quality/qcspec/add/" class="btn btn-primary">+ Yeni Şartname</a>
+    </div>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:12px">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Hedef</th>
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Özellik</th>
+        <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">v</th>
+        <th style="text-align:right;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Min / Max</th>
+        <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Gates</th>
+        <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Kritik</th>
+        <th style="text-align:center;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">Durum</th>
+        <th style="text-align:left;padding:10px;font-size:12px;text-transform:uppercase;color:var(--text-muted)">QA Onay</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in specs %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px">
+          <a href="{% url 'portal:quality_spec_detail' s.pk %}" style="font-weight:600;color:var(--primary);text-decoration:none">
+            {% if s.product %}{{ s.product.code }} · {{ s.product.name }}{% else %}{{ s.raw_material.code }} · {{ s.raw_material.name }}{% endif %}
+          </a>
+        </td>
+        <td style="padding:10px;font-family:monospace">{{ s.parameter.code }} {% if s.parameter.unit %}<span style="color:var(--text-muted)">({{ s.parameter.unit }})</span>{% endif %}</td>
+        <td style="padding:10px;text-align:center;font-family:monospace;font-weight:600">v{{ s.version }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace">
+          {{ s.min_value|default:"—" }} / {{ s.max_value|default:"—" }}
+        </td>
+        <td style="padding:10px;text-align:center;font-size:11px">
+          {% if s.check_at_gate_a %}<span style="background:#DBEAFE;color:#1E40AF;padding:2px 6px;border-radius:8px;margin:0 1px">A</span>{% endif %}
+          {% if s.check_at_gate_b %}<span style="background:#FEF3C7;color:#92400E;padding:2px 6px;border-radius:8px;margin:0 1px">B</span>{% endif %}
+          {% if s.check_at_gate_c %}<span style="background:#DCFCE7;color:#166534;padding:2px 6px;border-radius:8px;margin:0 1px">C</span>{% endif %}
+          {% if not s.check_at_gate_a and not s.check_at_gate_b and not s.check_at_gate_c %}<span style="color:var(--text-muted)">—</span>{% endif %}
+        </td>
+        <td style="padding:10px;text-align:center">
+          {% if s.is_critical %}<span style="background:#FEE2E2;color:#991B1B;padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600">BR-QA-05</span>{% endif %}
+        </td>
+        <td style="padding:10px;text-align:center">
+          {% if s.is_active %}
+            <span style="color:#16A34A;font-weight:600">● Aktif</span>
+          {% else %}
+            <span style="color:var(--text-muted)">○ Pasif</span>
+          {% endif %}
+        </td>
+        <td style="padding:10px;font-size:12px">
+          {% if s.approved_by %}
+            ✓ {{ s.approved_by.get_full_name|default:s.approved_by.username }}
+          {% else %}
+            <span style="color:#DC2626">⚠ Onay yok</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-muted)">
+        {% if only_active %}Aktif şartname yok. <a href="?active=0">Tümünü göster</a>{% else %}Şartname yok.{% endif %}
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

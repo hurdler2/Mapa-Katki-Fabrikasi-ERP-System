@@ -1,0 +1,101 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}Cari Hesap · {{ customer.code }}{% endblock %}
+{% block topbar %}Relevé de compte client · {{ customer.code }} · {{ customer.name }}{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Muhasebe</div>
+<a class="menu-item" href="{% url 'portal:accounting' %}"><span class="icon">💰</span> Muhasebe Panosu</a>
+<a class="menu-item" href="{% url 'portal:accounting_invoices' %}"><span class="icon">📄</span> Faturalar</a>
+<a class="menu-item" href="{% url 'portal:customer_advances' %}"><span class="icon">💳</span> Müşteri Avansları</a>
+<a class="menu-item" href="{% url 'portal:reporting_hub' %}"><span class="icon">📊</span> Raporlar</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi info">
+    <div class="label">Toplam Fatura (TTC)</div>
+    <div class="value">{{ inv_total|fr_short }}</div>
+    <div class="sub">DZD · {{ invoices|length }} adet</div>
+  </div>
+  <div class="kpi success">
+    <div class="label">Toplam Ödeme</div>
+    <div class="value">{{ inv_paid|fr_short }}</div>
+    <div class="sub">DZD · avans+nakit dahil</div>
+  </div>
+  <div class="kpi warning">
+    <div class="label">Açık Avans</div>
+    <div class="value">{{ advance_remaining|fr_short }}</div>
+    <div class="sub">DZD · tahsis edilebilir</div>
+  </div>
+  <div class="kpi {% if balance_due > 0 %}danger{% else %}success{% endif %}">
+    <div class="label">Bakiye (Solde)</div>
+    <div class="value">{{ balance_due|fr_short }}</div>
+    <div class="sub">DZD · {% if balance_due > 0 %}Alacaklıyız{% else %}Kapalı{% endif %}</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">Faturalar</h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9">
+        <th style="text-align:left;padding:8px">No</th>
+        <th style="text-align:left;padding:8px">Tarih</th>
+        <th style="text-align:right;padding:8px">TTC</th>
+        <th style="text-align:right;padding:8px">Ödenen</th>
+        <th style="text-align:right;padding:8px">Kalan</th>
+        <th style="text-align:center;padding:8px">Durum</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px"><a href="{% url 'portal:accounting_invoice_detail' inv.pk %}" style="color:var(--primary)">{{ inv.invoice_number }}</a></td>
+        <td style="padding:8px">{{ inv.date }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace">{{ inv.total_ttc|fr_number:2 }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace;color:#16A34A">{{ inv.amount_paid|fr_number:2 }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace;font-weight:600;{% if inv.amount_due > 0 %}color:#DC2626{% endif %}">{{ inv.amount_due|fr_number:2 }}</td>
+        <td style="padding:8px;text-align:center;font-size:11px">{{ inv.get_status_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text-muted)">Fatura yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--text-muted);text-transform:uppercase">Avanslar (§23)</h3>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#F6F7F9">
+        <th style="text-align:left;padding:8px">Avans No</th>
+        <th style="text-align:left;padding:8px">Tarih</th>
+        <th style="text-align:right;padding:8px">Tutar</th>
+        <th style="text-align:right;padding:8px">Tahsis</th>
+        <th style="text-align:right;padding:8px">Kalan</th>
+        <th style="text-align:center;padding:8px">Durum</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in advances %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-family:monospace">{{ a.advance_number }}</td>
+        <td style="padding:8px">{{ a.date }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace">{{ a.amount|fr_number:2 }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace">{{ a.allocated_total|fr_number:2 }}</td>
+        <td style="padding:8px;text-align:right;font-family:monospace;font-weight:600;color:#16A34A">{{ a.remaining_amount|fr_number:2 }}</td>
+        <td style="padding:8px;text-align:center;font-size:11px">{{ a.get_status_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text-muted)">Avans yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div style="margin-top:16px">
+  <a href="/admin/masterdata/customer/{{ customer.pk }}/" class="btn btn-outline">Müşteri detay</a>
+</div>
+{% endblock %}
