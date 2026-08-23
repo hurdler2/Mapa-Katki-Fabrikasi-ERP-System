@@ -286,3 +286,206 @@ def test_scada_status_after_batch(
     assert data["stats"]["scada_batches_today"] == 1
     assert len(data["recent_batches"]) == 1
     assert data["recent_batches"][0]["batch_number"] == "BATCH-STATUS-01"
+
+
+# ===========================================================================
+# SCADA otomatik stok düşürme + ürün stoğu artırma + otomatik QC release
+# ===========================================================================
+
+import datetime as _dt
+
+
+@pytest.fixture
+def released_lots(raw_materials, uom):
+    """RELEASED hammadde lotları — SCADA batch tüketimi için."""
+    from inventory.models import RawMaterialLot
+    from masterdata.models import Supplier
+
+    supplier = Supplier.objects.create(code="SUP-01", name="Test Supplier")
+    today = _dt.date.today()
+    lots = {}
+    for code, qty in [("W", Decimal("5000")), ("M1", Decimal("2000")),
+                      ("M2", Decimal("1000"))]:
+        lot = RawMaterialLot.objects.create(
+            lot_number=f"LOT-{code}-TEST",
+            raw_material=raw_materials[code],
+            supplier=supplier,
+            received_date=today,
+            expiry_date=today + _dt.timedelta(days=180),
+            received_qty=qty,
+            remaining_qty=qty,
+            qc_status=RawMaterialLot.QCStatus.RELEASED,
+            unit_cost=Decimal("100.00"),
+        )
+        lots[code] = lot
+    return lots
+
+
+def test_scada_batch_deducts_raw_material_lots(
+    scada_client, active_recipe, raw_materials, qc_params, reactor, released_lots,
+):
+    """SCADA batch → FEFO lot düş + StockMovement yazılır."""
+    from inventory.models import StockMovement
+
+    initial_w = released_lots["W"].remaining_qty
+    initial_m1 = released_lots["M1"].remaining_qty
+
+    payload = {
+        "batch_number": "BATCH-FEFO-01",
+        "recipe_code": "ADX-100-v3",
+        "target_kg": 1000.0,
+        "actual_kg": 1000.0,
+        "started_at": "2026-09-15T14:00:00Z",
+        "completed_at": "2026-09-15T14:30:00Z",
+        "consumptions": [
+            {"code": "W", "target": 600.0, "actual": 600.0},
+            {"code": "M1", "target": 250.0, "actual": 250.0},
+        ],
+        "qc_results": [
+            {"parameter": "PH", "value": 5.8, "verdict": "PASS"},
+        ],
+    }
+    r = scada_client.post(
+        "/api/v1/production/batches/from-scada/", payload, format="json",
+    )
+    assert r.status_code == 201
+
+    released_lots["W"].refresh_from_db()
+    released_lots["M1"].refresh_from_db()
+    assert released_lots["W"].remaining_qty == initial_w - Decimal("600")
+    assert released_lots["M1"].remaining_qty == initial_m1 - Decimal("250")
+
+    movements = StockMovement.objects.filter(
+        lot__lot_number__startswith="LOT-",
+        movement_type=StockMovement.MovementType.CONSUMPTION,
+    )
+    assert movements.count() >= 2
+    for mv in movements:
+        assert mv.quantity < 0
+        assert "SCADA" in (mv.document_source or "")
+
+
+def test_scada_batch_all_pass_auto_released(
+    scada_client, active_recipe, raw_materials, qc_params, reactor, released_lots,
+):
+    """Tüm QC PASS → batch qc_status = RELEASED (otomatik)."""
+    from production.models import ProductionBatch
+
+    payload = {
+        "batch_number": "BATCH-PASS-01",
+        "recipe_code": "ADX-100-v3",
+        "target_kg": 500.0,
+        "actual_kg": 500.0,
+        "started_at": "2026-09-15T14:00:00Z",
+        "completed_at": "2026-09-15T14:30:00Z",
+        "consumptions": [{"code": "W", "target": 300.0, "actual": 300.0}],
+        "qc_results": [
+            {"parameter": "PH", "value": 5.8, "verdict": "PASS"},
+            {"parameter": "TEMP", "value": 32.0, "verdict": "PASS"},
+        ],
+    }
+    r = scada_client.post(
+        "/api/v1/production/batches/from-scada/", payload, format="json",
+    )
+    assert r.status_code == 201
+    batch = ProductionBatch.objects.get(batch_number="BATCH-PASS-01")
+    assert batch.qc_status == ProductionBatch.QCStatus.RELEASED
+
+
+def test_scada_batch_with_fail_not_released(
+    scada_client, active_recipe, raw_materials, qc_params, reactor, released_lots,
+):
+    """FAIL varsa batch RELEASED değildir."""
+    from production.models import ProductionBatch
+
+    payload = {
+        "batch_number": "BATCH-FAIL-01",
+        "recipe_code": "ADX-100-v3",
+        "target_kg": 500.0,
+        "actual_kg": 500.0,
+        "started_at": "2026-09-15T14:00:00Z",
+        "completed_at": "2026-09-15T14:30:00Z",
+        "consumptions": [{"code": "W", "target": 300.0, "actual": 300.0}],
+        "qc_results": [{"parameter": "PH", "value": 3.2, "verdict": "FAIL"}],
+    }
+    r = scada_client.post(
+        "/api/v1/production/batches/from-scada/", payload, format="json",
+    )
+    assert r.status_code == 201
+    batch = ProductionBatch.objects.get(batch_number="BATCH-FAIL-01")
+    assert batch.qc_status != ProductionBatch.QCStatus.RELEASED
+
+
+def test_scada_insufficient_stock_warning(
+    scada_client, active_recipe, raw_materials, qc_params, reactor,
+):
+    """Stok yetersiz → warnings.insufficient_stock döner."""
+    payload = {
+        "batch_number": "BATCH-NOSTOCK-01",
+        "recipe_code": "ADX-100-v3",
+        "target_kg": 1000.0,
+        "actual_kg": 1000.0,
+        "started_at": "2026-09-15T14:00:00Z",
+        "consumptions": [{"code": "W", "target": 600.0, "actual": 600.0}],
+    }
+    r = scada_client.post(
+        "/api/v1/production/batches/from-scada/", payload, format="json",
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert "insufficient_stock" in (data.get("warnings") or {})
+
+
+def test_product_current_stock(active_recipe, released_lots, reactor):
+    """Product.current_stock = RELEASED batchlerin OutputContainer toplamı."""
+    from production.models import OutputContainer, ProductionBatch, ProductionOrder
+
+    order = ProductionOrder.objects.create(
+        order_number="PORD-STOCK-01", product=active_recipe.product,
+        recipe=active_recipe, target_qty=Decimal("1000"),
+        unit=active_recipe.unit, reactor=reactor,
+        status=ProductionOrder.Status.COMPLETED,
+    )
+    batch = ProductionBatch.objects.create(
+        batch_number="B-STOCK-01", production_order=order,
+        recipe=active_recipe, reactor=reactor,
+        target_qty=Decimal("1000"), actual_qty=Decimal("1000"),
+        status=ProductionBatch.Status.RELEASED,
+        qc_status=ProductionBatch.QCStatus.RELEASED,
+    )
+    OutputContainer.objects.create(
+        batch=batch, container=reactor, quantity=Decimal("500"),
+    )
+    OutputContainer.objects.create(
+        batch=batch, container=reactor, quantity=Decimal("500"),
+    )
+    active_recipe.product.refresh_from_db()
+    assert active_recipe.product.current_stock == Decimal("1000")
+
+
+def test_product_current_stock_excludes_shipped(active_recipe, released_lots, reactor):
+    """Sevk edilen IBC (shipment_reference dolu) stoktan düşer."""
+    from production.models import OutputContainer, ProductionBatch, ProductionOrder
+
+    order = ProductionOrder.objects.create(
+        order_number="PORD-STOCK-02", product=active_recipe.product,
+        recipe=active_recipe, target_qty=Decimal("500"),
+        unit=active_recipe.unit, reactor=reactor,
+        status=ProductionOrder.Status.COMPLETED,
+    )
+    batch = ProductionBatch.objects.create(
+        batch_number="B-STOCK-02", production_order=order,
+        recipe=active_recipe, reactor=reactor,
+        target_qty=Decimal("500"), actual_qty=Decimal("500"),
+        status=ProductionBatch.Status.RELEASED,
+        qc_status=ProductionBatch.QCStatus.RELEASED,
+    )
+    OutputContainer.objects.create(
+        batch=batch, container=reactor, quantity=Decimal("300"),
+        shipment_reference="",
+    )
+    OutputContainer.objects.create(
+        batch=batch, container=reactor, quantity=Decimal("200"),
+        shipment_reference="BL-2026-999",
+    )
+    assert active_recipe.product.current_stock == Decimal("300")

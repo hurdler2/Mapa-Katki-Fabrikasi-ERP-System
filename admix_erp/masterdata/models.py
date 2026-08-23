@@ -120,6 +120,15 @@ class Product(TimeStamped):
     description = models.TextField("Açıklama", blank=True)
     is_active = models.BooleanField("Aktif", default=True)
 
+    # Bitmiş ürün stok eşikleri
+    alert_threshold = models.DecimalField(
+        "Seuil d'alerte (mamul)", max_digits=12, decimal_places=2, default=0,
+        help_text="Bitmiş ürün stok uyarı eşiği.",
+    )
+    rupture_threshold = models.DecimalField(
+        "Seuil de rupture (mamul)", max_digits=12, decimal_places=2, default=0,
+    )
+
     class Meta:
         verbose_name = "Ürün"
         verbose_name_plural = "Ürünler"
@@ -127,6 +136,32 @@ class Product(TimeStamped):
 
     def __str__(self) -> str:
         return f"{self.code} — {self.name}"
+
+    @property
+    def current_stock(self):
+        """Anlık bitmiş ürün stoğu.
+
+        Kural: RELEASED durumundaki batchlerin OutputContainer'larından,
+        henüz sevkiyata bağlanmamış (shipment_reference boş) olanlar.
+        """
+        from decimal import Decimal
+        from django.db.models import Sum
+        from production.models import OutputContainer, ProductionBatch
+        total = OutputContainer.objects.filter(
+            batch__recipe__product=self,
+            batch__qc_status=ProductionBatch.QCStatus.RELEASED,
+            shipment_reference="",
+        ).aggregate(t=Sum("quantity"))["t"] or Decimal("0")
+        return total
+
+    def stock_level(self):
+        from decimal import Decimal
+        cur = self.current_stock
+        if self.rupture_threshold and cur <= self.rupture_threshold:
+            return "rupture"
+        if self.alert_threshold and cur <= self.alert_threshold:
+            return "alert"
+        return "ok"
 
 
 class Supplier(TimeStamped):

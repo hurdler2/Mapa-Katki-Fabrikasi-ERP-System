@@ -1343,6 +1343,100 @@ def advance_allocate(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @login_required
+def product_stock_list(request: HttpRequest) -> HttpResponse:
+    """Bitmiş ürün stok listesi — tüm ürünlerin toplam bakışı."""
+    _has_perm(request, "masterdata.view_product")
+    from decimal import Decimal
+    from masterdata.models import Product
+
+    products = Product.objects.filter(is_active=True).order_by("code")
+    rows = []
+    total_value = Decimal("0")
+    for p in products:
+        stock = p.current_stock
+        level = p.stock_level()
+        rows.append({
+            "product": p, "stock": stock, "level": level,
+        })
+
+    return render(request, "portal/warehouse/product_stock_list.html", {
+        "current": "home",
+        "rows": rows,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
+def product_stock_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    """Bitmiş ürün detay — QC-RELEASED batch'lerdeki mamul stok."""
+    _has_perm(request, "masterdata.view_product")
+    from decimal import Decimal
+    from masterdata.models import Product
+    from production.models import OutputContainer, ProductionBatch
+
+    p = Product.objects.select_related("unit").get(pk=pk)
+
+    current = p.current_stock
+    level = p.stock_level()
+
+    # Depoda bekleyen IBC'ler (RELEASED batch + shipment_reference boş)
+    available_ibcs = (
+        OutputContainer.objects
+        .filter(
+            batch__recipe__product=p,
+            batch__qc_status=ProductionBatch.QCStatus.RELEASED,
+            shipment_reference="",
+        )
+        .select_related("batch__recipe", "container")
+        .order_by("-filled_at", "-created_at")
+    )
+
+    # QC-HOLD veya PENDING durumunda bekleyen batch'ler
+    pending_batches = (
+        ProductionBatch.objects
+        .filter(
+            recipe__product=p,
+            qc_status__in=[ProductionBatch.QCStatus.PENDING],
+            status__in=[ProductionBatch.Status.COMPLETED,
+                        ProductionBatch.Status.QC_HOLD],
+        )
+        .select_related("recipe")
+        .order_by("-created_at")[:10]
+    )
+
+    # Son 30 gün üretim
+    since_30 = dt.date.today() - dt.timedelta(days=30)
+    recent_released = ProductionBatch.objects.filter(
+        recipe__product=p,
+        qc_status=ProductionBatch.QCStatus.RELEASED,
+        completed_at__date__gte=since_30,
+    )
+    total_30d = recent_released.aggregate(
+        t=Sum("actual_qty")
+    )["t"] or Decimal("0")
+
+    # Progress bar %
+    max_display = max(
+        p.alert_threshold * 2 if p.alert_threshold else current,
+        Decimal("1"),
+    )
+    percent = min(100, int(current * 100 / max_display)) if max_display > 0 else 0
+
+    return render(request, "portal/warehouse/product_stock_detail.html", {
+        "current": "home",
+        "product": p,
+        "current_qty": current,
+        "level": level,
+        "percent": percent,
+        "available_ibcs": available_ibcs[:30],
+        "ibc_count": available_ibcs.count(),
+        "pending_batches": pending_batches,
+        "total_30d": total_30d,
+        **_notif_ctx(request.user),
+    })
+
+
+@login_required
 def raw_material_detail(request: HttpRequest, pk: int) -> HttpResponse:
     """Hammadde detay sayfası — progress bar + alerte/rupture eşikleri
     + son 20 hareket + fiyat + valeur du stock."""

@@ -90,6 +90,8 @@ urlpatterns = [
 
     # Sprint 4 — Stok detay + Reporting hub
     path("stok/hammadde/<int:pk>/", views.raw_material_detail, name="raw_material_detail"),
+    path("stok/urun/<int:pk>/", views.product_stock_detail, name="product_stock_detail"),
+    path("stok/urunler/", views.product_stock_list, name="product_stock_list"),
     path("rapor/", views.reporting_hub, name="reporting_hub"),
 
     # Sprint 6 — Detaylı raporlar

@@ -29,9 +29,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from formulation.models import Recipe
+from inventory.models import RawMaterialLot, StockMovement
 from masterdata.models import RawMaterial
 from production.models import (
     MaterialConsumption,
+    OutputContainer,
     ProductionBatch,
     ProductionOrder,
 )
@@ -170,19 +172,64 @@ def batch_from_scada(request):
                 operator=str(data.get("operator", "SCADA-AUTO"))[:120],
             )
 
-            # Malzeme tüketimleri
+            # Malzeme tüketimleri — FEFO lot düşürme + StockMovement
             consumption_ids = []
             missing_codes = []
+            insufficient_stock = []
             for c in data.get("consumptions", []):
                 rm = RawMaterial.objects.filter(code=c.get("code")).first()
                 if rm is None:
                     missing_codes.append(c.get("code"))
                     continue
+                actual = Decimal(str(c["actual"]))
+
+                # FEFO lot seç: expiry_date en yakın olan RELEASED lot,
+                # gerekirse birden fazla lottan bölerek çek.
+                remaining_to_consume = actual
+                selected_lots = _select_fefo_lots(rm, remaining_to_consume)
+                if selected_lots is None:
+                    insufficient_stock.append({
+                        "code": c.get("code"),
+                        "needed": float(actual),
+                        "available": float(_total_released_stock(rm)),
+                    })
+                    # Yine de MaterialConsumption kaydı yaz (bilgi kaybı olmasın)
+                    cons = MaterialConsumption.objects.create(
+                        batch=batch, raw_material=rm,
+                        target_weight=Decimal(str(c["target"])),
+                        actual_weight=actual,
+                        source=MaterialConsumption.Source.SCADA,
+                        dosed_at=batch.completed_at or timezone.now(),
+                    )
+                    consumption_ids.append(cons.pk)
+                    continue
+
+                # Her seçilen lottan sırayla düş
+                for lot, take_qty in selected_lots:
+                    lot_locked = RawMaterialLot.objects.select_for_update().get(pk=lot.pk)
+                    if lot_locked.remaining_qty < take_qty:
+                        take_qty = lot_locked.remaining_qty  # güvenlik payı
+                    lot_locked.remaining_qty = lot_locked.remaining_qty - take_qty
+                    lot_locked.save(update_fields=["remaining_qty", "updated_at"])
+
+                    StockMovement.objects.create(
+                        lot=lot_locked,
+                        movement_type=StockMovement.MovementType.CONSUMPTION,
+                        quantity=-take_qty,
+                        reference=batch.batch_number,
+                        document_source=f"SCADA · Batch {batch.batch_number}",
+                        unit_price=lot_locked.unit_cost,
+                        observations=f"SCADA batch {batch.batch_number} · {rm.code}",
+                        note=f"Otomatik SCADA tüketimi",
+                    )
+
+                # MaterialConsumption — ilk seçilen lotu kaydet (dominant lot)
+                dominant_lot = selected_lots[0][0]
                 cons = MaterialConsumption.objects.create(
-                    batch=batch,
-                    raw_material=rm,
+                    batch=batch, raw_material=rm,
+                    lot=dominant_lot,
                     target_weight=Decimal(str(c["target"])),
-                    actual_weight=Decimal(str(c["actual"])),
+                    actual_weight=actual,
                     source=MaterialConsumption.Source.SCADA,
                     dosed_at=batch.completed_at or timezone.now(),
                 )
@@ -218,9 +265,16 @@ def batch_from_scada(request):
         warnings["missing_raw_material_codes"] = missing_codes
     if missing_params:
         warnings["missing_qc_parameters"] = missing_params
+    if insufficient_stock:
+        warnings["insufficient_stock"] = insufficient_stock
 
-    log.info("SCADA batch %s kaydedildi (kullanıcı=%s)",
-             batch_number, request.user.username)
+    # ── Otomatik QC değerlendirme ──
+    # Tüm QC sonuçları PASS ise batch otomatik RELEASED.
+    # FAIL varsa QC_HOLD (operatör/QA karar verecek).
+    _auto_qc_release(batch)
+
+    log.info("SCADA batch %s kaydedildi (kullanıcı=%s, qc=%s)",
+             batch_number, request.user.username, batch.qc_status)
 
     return Response({
         "batch_id": batch.pk,
@@ -379,6 +433,78 @@ def scada_status(request):
 # ---------------------------------------------------------------------------
 # Yardımcı fonksiyonlar
 # ---------------------------------------------------------------------------
+
+def _auto_qc_release(batch):
+    """SCADA batch geldiğinde QC otomatik değerlendir.
+
+    Tüm QCTestResult PASS ise batch qc_status → RELEASED (satılabilir).
+    Herhangi bir FAIL varsa → QC_HOLD (QA kararı bekler).
+    Hiç sonuç yoksa PENDING kalır.
+    """
+    results = list(batch.qc_results.all())
+    if not results:
+        return  # QC sonucu yok, PENDING kalsın
+
+    has_fail = any(r.verdict == QCTestResult.Verdict.FAIL for r in results)
+    all_pass = all(
+        r.verdict == QCTestResult.Verdict.PASS
+        for r in results
+        if r.verdict != QCTestResult.Verdict.NA
+    )
+
+    if has_fail:
+        batch.qc_status = ProductionBatch.QCStatus.PENDING
+        batch.qc_notes = "SCADA: FAIL sonuç var — QA kararı bekleniyor."
+        if batch.status == ProductionBatch.Status.COMPLETED:
+            batch.status = ProductionBatch.Status.QC_HOLD
+        batch.save(update_fields=["qc_status", "qc_notes", "status", "updated_at"])
+    elif all_pass:
+        batch.qc_status = ProductionBatch.QCStatus.RELEASED
+        batch.qc_notes = "SCADA: Tüm testler PASS — otomatik RELEASED."
+        if batch.status in (
+            ProductionBatch.Status.COMPLETED, ProductionBatch.Status.QC_HOLD,
+        ):
+            batch.status = ProductionBatch.Status.RELEASED
+        batch.save(update_fields=["qc_status", "qc_notes", "status", "updated_at"])
+
+
+def _select_fefo_lots(rm, needed_qty):
+    """RELEASED lotlar arasından FEFO ile lot(lar) seç.
+
+    Gerekli miktarı karşılamak için sırayla eski (expiry en yakın) lot'lardan
+    alır. Yeterli stok yoksa None döner.
+
+    Dönüş: [(lot, take_qty), ...] veya None
+    """
+    from decimal import Decimal
+    lots = list(
+        RawMaterialLot.objects
+        .filter(raw_material=rm,
+                qc_status=RawMaterialLot.QCStatus.RELEASED,
+                remaining_qty__gt=0)
+        .order_by("expiry_date", "received_date")
+    )
+    selected = []
+    still = Decimal(needed_qty)
+    for lot in lots:
+        if still <= 0:
+            break
+        take = min(lot.remaining_qty, still)
+        selected.append((lot, take))
+        still -= take
+    if still > 0:
+        return None  # yetersiz
+    return selected
+
+
+def _total_released_stock(rm):
+    from decimal import Decimal
+    from django.db.models import Sum
+    return RawMaterialLot.objects.filter(
+        raw_material=rm,
+        qc_status=RawMaterialLot.QCStatus.RELEASED,
+    ).aggregate(t=Sum("remaining_qty"))["t"] or Decimal("0")
+
 
 def _recipe_code_to_product(recipe_code: str) -> str:
     """'ADX-100-v3' → 'ADX-100'."""

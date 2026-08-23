@@ -1,0 +1,68 @@
+{% extends "portal/_base.html" %}
+{% load formats %}
+{% block title %}Bitmiş Ürün Stok · Depo{% endblock %}
+{% block topbar %}Bitmiş Ürün Stokları · Produits Finis{% endblock %}
+
+{% block sidebar %}
+<div class="menu-group">Stok / Depo</div>
+<a class="menu-item" href="{% url 'portal:warehouse' %}"><span class="icon">📦</span> Depo Panosu</a>
+<a class="menu-item active" href="{% url 'portal:product_stock_list' %}"><span class="icon">🏷️</span> Bitmiş Ürün Stokları</a>
+<a class="menu-item" href="/admin/masterdata/rawmaterial/"><span class="icon">🧪</span> Hammaddeler</a>
+<a class="menu-item" href="/admin/inventory/rawmateriallot/"><span class="icon">📋</span> Hammadde Lotları</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div>
+      <h2 style="margin:0">Bitmiş Ürün Stokları</h2>
+      <div style="color:var(--text-muted);font-size:13px">
+        RELEASED batch'lerin depoda bekleyen (henüz sevk edilmemiş) toplam mamul miktarı.
+      </div>
+    </div>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:12px">
+    <thead>
+      <tr style="background:#F6F7F9;border-bottom:2px solid var(--border-strong)">
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Kod</th>
+        <th style="text-align:left;padding:10px;font-size:12px;color:var(--text-muted)">Ürün Adı</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Anlık Stok</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Alert Eşiği</th>
+        <th style="text-align:right;padding:10px;font-size:12px;color:var(--text-muted)">Rupture</th>
+        <th style="text-align:center;padding:10px;font-size:12px;color:var(--text-muted)">Seviye</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px;font-family:monospace;font-weight:600">
+          <a href="{% url 'portal:product_stock_detail' r.product.pk %}" style="color:var(--primary);text-decoration:none">{{ r.product.code }}</a>
+        </td>
+        <td style="padding:10px">{{ r.product.name }}</td>
+        <td style="padding:10px;text-align:right;font-family:monospace;font-weight:600;font-size:15px">
+          {{ r.stock|fr_number:2 }} {{ r.product.unit.code }}
+        </td>
+        <td style="padding:10px;text-align:right;font-family:monospace;color:#F59E0B">
+          {{ r.product.alert_threshold|fr_number:0 }}
+        </td>
+        <td style="padding:10px;text-align:right;font-family:monospace;color:#DC2626">
+          {{ r.product.rupture_threshold|fr_number:0 }}
+        </td>
+        <td style="padding:10px;text-align:center">
+          {% if r.level == 'rupture' %}<span style="background:#FEE2E2;color:#991B1B;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">🚨 RUPTURE</span>
+          {% elif r.level == 'alert' %}<span style="background:#FEF3C7;color:#92400E;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600">⚠ Alerte</span>
+          {% else %}<span style="color:#16A34A;font-weight:700">✓ OK</span>{% endif %}
+        </td>
+        <td style="padding:10px;text-align:right">
+          <a href="{% url 'portal:product_stock_detail' r.product.pk %}" class="btn btn-outline" style="padding:4px 12px;font-size:12px">Detay</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted)">Aktif ürün yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
