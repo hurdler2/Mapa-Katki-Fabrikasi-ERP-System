@@ -1,4 +1,6 @@
-base: main
-compare: readme-update
+##base: main
+##compare: readme-update
 
-SD6AL445GB-HNV-IR
+##SD6AL445GB-HNV-IR
+
+##Auto Deploy ve Scada entegrasyon yapıldı
